@@ -29,7 +29,7 @@ const { width } = Dimensions.get('window');
  */
 const DashboardScreen = ({ navigation }) => {
   const { user } = useAuth();
-  const isSuperadmin = Boolean(user?.role?.toUpperCase() === 'SUPERADMIN');  
+const isSuperadmin = Boolean(user?.role?.toLowerCase() === 'superadmin');
   const [stats, setStats] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);

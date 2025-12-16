@@ -97,11 +97,11 @@ const ProfileScreen = ({ navigation }) => {
         {renderInfoCard('Username', user?.username || 'N/A')}
         {renderInfoCard('Role', user?.role || 'N/A')}
         {renderInfoCard(
-          'Permissions',
-          user?.role === 'SUPERADMIN'
-            ? 'Full System Access'
-            : 'Employee & Attendance Management'
-        )}
+  'Permissions',
+  user?.role?.toLowerCase() === 'superadmin'  // Add toLowerCase()
+    ? 'Full System Access'
+    : 'Employee & Attendance Management'
+)}
       </View>
 
       {/* App Settings */}
