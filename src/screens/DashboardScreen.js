@@ -1,4 +1,4 @@
-// src/screens/DashboardScreen.js
+// src/screens/DashboardScreen.js - FIXED VERSION
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
@@ -29,7 +29,10 @@ const { width } = Dimensions.get('window');
  */
 const DashboardScreen = ({ navigation }) => {
   const { user } = useAuth();
-const isSuperadmin = Boolean(user?.role?.toLowerCase() === 'superadmin');
+  
+  // ✅ FIX: Case-insensitive role check with proper null safety
+  const isSuperadmin = user?.role?.toLowerCase() === 'superadmin';
+  
   const [stats, setStats] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -47,17 +50,17 @@ const isSuperadmin = Boolean(user?.role?.toLowerCase() === 'superadmin');
           superadminDashboardAPI.getAlerts(),
         ]);
         
-        if (overviewResponse.success) {
+        if (overviewResponse?.success) {
           setStats(overviewResponse.overview);
         }
         
-        if (alertsResponse.success) {
+        if (alertsResponse?.success) {
           setAlerts(alertsResponse.alerts || []);
         }
       } else {
         // Fetch admin stats
         const response = await dashboardAPI.getStats();
-        if (response.success) {
+        if (response?.success) {
           setStats(response.stats);
         }
       }
@@ -107,7 +110,6 @@ const isSuperadmin = Boolean(user?.role?.toLowerCase() === 'superadmin');
    * Navigate to analytics (superadmin only)
    */
   const handleViewAnalytics = () => {
-    // Navigate to analytics screen (to be created)
     Alert.alert('Analytics', 'Detailed analytics coming soon!');
   };
 
@@ -118,61 +120,32 @@ const isSuperadmin = Boolean(user?.role?.toLowerCase() === 'superadmin');
     <TouchableOpacity
       style={[styles.statCard, { borderLeftColor: color }]}
       onPress={onPress}
-      activeOpacity={0.7}
+      activeOpacity={onPress ? 0.7 : 1}
+      disabled={!onPress}
     >
-      <View style={styles.statIcon}>
-        <Ionicons name={icon} size={28} color={color} />
-      </View>
       <View style={styles.statContent}>
-        <Text style={styles.statValue}>{value}</Text>
+        <Text style={styles.statValue}>{value || 0}</Text>
         <Text style={styles.statTitle}>{title}</Text>
+      </View>
+      <View style={[styles.statIcon, { backgroundColor: `${color}20` }]}>
+        <Ionicons name={icon} size={28} color={color} />
       </View>
     </TouchableOpacity>
   );
 
   /**
-   * Render attendance status card
+   * Render status card (for attendance breakdown)
    */
-  const renderStatusCard = (status, count, total, color) => {
-    const percentage = total > 0 ? ((count / total) * 100).toFixed(1) : 0;
-    
-    return (
-      <View style={[styles.statusCard, { backgroundColor: `${color}15` }]}>
-        <View style={[styles.statusDot, { backgroundColor: color }]} />
-        <View style={styles.statusContent}>
-          <Text style={styles.statusLabel}>{status}</Text>
-          <Text style={[styles.statusCount, { color }]}>{count}</Text>
-          <Text style={styles.statusPercentage}>{percentage}%</Text>
-        </View>
-      </View>
-    );
-  };
-
-  /**
-   * Render department card
-   */
-  const renderDepartmentCard = (dept) => (
-    <View key={dept.department} style={styles.departmentCard}>
-      <View style={styles.departmentHeader}>
-        <Text style={styles.departmentName}>{dept.department}</Text>
-        <Text style={styles.departmentRate}>{dept.attendanceRate}%</Text>
-      </View>
-      <View style={styles.departmentStats}>
-        <Text style={styles.departmentDetail}>
-          {dept.presentToday}/{dept.totalEmployees} present
+  const renderStatusCard = (label, count, total, color) => (
+    <View style={styles.statusCard}>
+      <View style={[styles.statusIndicator, { backgroundColor: color }]} />
+      <Text style={styles.statusLabel}>{label}</Text>
+      <Text style={styles.statusCount}>{count || 0}</Text>
+      {total > 0 && (
+        <Text style={styles.statusPercentage}>
+          {((count / total) * 100).toFixed(0)}%
         </Text>
-      </View>
-      <View style={styles.progressBar}>
-        <View
-          style={[
-            styles.progressFill,
-            {
-              width: `${dept.attendanceRate}%`,
-              backgroundColor: dept.attendanceRate >= 80 ? '#4CAF50' : '#FF9800',
-            },
-          ]}
-        />
-      </View>
+      )}
     </View>
   );
 
@@ -191,11 +164,11 @@ const isSuperadmin = Boolean(user?.role?.toLowerCase() === 'superadmin');
         <Ionicons
           name="alert-circle"
           size={24}
-          color={alertColors[alert.severity]}
+          color={alertColors[alert.severity] || '#2196F3'}
         />
         <View style={styles.alertContent}>
           <Text style={styles.alertMessage}>{alert.message}</Text>
-          {alert.details && (
+          {alert.details && Array.isArray(alert.details) && (
             <Text style={styles.alertDetails}>
               Affected: {alert.details.join(', ')}
             </Text>
@@ -236,7 +209,9 @@ const isSuperadmin = Boolean(user?.role?.toLowerCase() === 'superadmin');
       {/* Welcome Section */}
       <View style={styles.welcomeSection}>
         <Text style={styles.welcomeText}>Welcome back!</Text>
-        <Text style={styles.userRole}>{user?.role || 'Admin'}</Text>
+        <Text style={styles.userRole}>
+          {user?.role ? user.role.charAt(0).toUpperCase() + user.role.slice(1) : 'Admin'}
+        </Text>
       </View>
 
       {/* Quick Stats for Admin */}
@@ -251,9 +226,22 @@ const isSuperadmin = Boolean(user?.role?.toLowerCase() === 'superadmin');
               '#2196F3'
             )}
             {renderStatCard(
-              'Attendance Rate',
-              `${stats.today.attendanceRate}%`,
+              'Present Today',
+              stats.today.present || 0,
               'checkmark-circle',
+              '#4CAF50',
+              handleViewDailyAttendance
+            )}
+            {renderStatCard(
+              'Absent Today',
+              stats.today.absent || 0,
+              'close-circle',
+              '#F44336'
+            )}
+            {renderStatCard(
+              'Attendance Rate',
+              `${stats.today.attendanceRate || 0}%`,
+              'stats-chart',
               '#4CAF50',
               handleViewDailyAttendance
             )}
@@ -263,26 +251,26 @@ const isSuperadmin = Boolean(user?.role?.toLowerCase() === 'superadmin');
           <View style={styles.statusGrid}>
             {renderStatusCard(
               'Present',
-              stats.today.present,
-              stats.totalEmployees,
+              stats.today.present || 0,
+              stats.totalEmployees || 0,
               '#4CAF50'
             )}
             {renderStatusCard(
               'Absent',
-              stats.today.absent,
-              stats.totalEmployees,
+              stats.today.absent || 0,
+              stats.totalEmployees || 0,
               '#F44336'
             )}
             {renderStatusCard(
               'Late',
-              stats.today.late,
-              stats.totalEmployees,
+              stats.today.late || 0,
+              stats.totalEmployees || 0,
               '#FF9800'
             )}
             {renderStatusCard(
               'Not Marked',
-              stats.today.notMarked,
-              stats.totalEmployees,
+              stats.today.notMarked || 0,
+              stats.totalEmployees || 0,
               '#9E9E9E'
             )}
           </View>
@@ -314,8 +302,8 @@ const isSuperadmin = Boolean(user?.role?.toLowerCase() === 'superadmin');
               '#FF9800'
             )}
             {renderStatCard(
-              'Today\'s Attendance',
-              stats.today.totalMarked || 0,
+              "Today's Attendance",
+              stats.today?.totalMarked || 0,
               'calendar',
               '#4CAF50',
               handleViewDailyAttendance
@@ -333,48 +321,7 @@ const isSuperadmin = Boolean(user?.role?.toLowerCase() === 'superadmin');
               <Text style={styles.alertBadgeText}>{alerts.length}</Text>
             </View>
           </View>
-          {alerts.slice(0, 3).map(renderAlert)}
-          {alerts.length > 3 && (
-            <Text style={styles.moreAlertsText}>
-              +{alerts.length - 3} more alerts
-            </Text>
-          )}
-        </View>
-      )}
-
-      {/* Department Breakdown */}
-      {!isSuperadmin && stats.departments && stats.departments.length > 0 && (
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Department Attendance</Text>
-          {stats.departments.map(renderDepartmentCard)}
-        </View>
-      )}
-
-      {/* Monthly Summary */}
-      {!isSuperadmin && stats.monthly && (
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Monthly Summary</Text>
-          <View style={styles.monthlyCard}>
-            <Text style={styles.monthlyMonth}>{stats.monthly.month}</Text>
-            <View style={styles.monthlyStats}>
-              <View style={styles.monthlyStatItem}>
-                <Text style={styles.monthlyStatValue}>{stats.monthly.present}</Text>
-                <Text style={styles.monthlyStatLabel}>Present</Text>
-              </View>
-              <View style={styles.monthlyStatItem}>
-                <Text style={styles.monthlyStatValue}>{stats.monthly.absent}</Text>
-                <Text style={styles.monthlyStatLabel}>Absent</Text>
-              </View>
-              <View style={styles.monthlyStatItem}>
-                <Text style={styles.monthlyStatValue}>{stats.monthly.late}</Text>
-                <Text style={styles.monthlyStatLabel}>Late</Text>
-              </View>
-              <View style={styles.monthlyStatItem}>
-                <Text style={styles.monthlyStatValue}>{stats.monthly.halfDay}</Text>
-                <Text style={styles.monthlyStatLabel}>Half Day</Text>
-              </View>
-            </View>
-          </View>
+          {alerts.map((alert, index) => renderAlert(alert, index))}
         </View>
       )}
 
@@ -470,6 +417,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#E3F2FD',
     marginTop: 4,
+    textTransform: 'capitalize',
   },
   section: {
     padding: 16,
@@ -483,14 +431,16 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: 'bold',
     color: '#333',
-    marginBottom: 12,
+    flex: 1,
   },
   alertBadge: {
     backgroundColor: '#F44336',
     borderRadius: 12,
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    marginLeft: 8,
+    minWidth: 24,
+    height: 24,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 6,
   },
   alertBadgeText: {
     color: '#fff',
@@ -500,26 +450,24 @@ const styles = StyleSheet.create({
   quickStats: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    justifyContent: 'space-between',
-    marginBottom: 16,
+    marginHorizontal: -6,
   },
   statCard: {
-    width: (width - 48) / 2,
     backgroundColor: '#fff',
     borderRadius: 12,
     padding: 16,
-    marginBottom: 12,
+    margin: 6,
+    flex: 1,
+    minWidth: (width - 48) / 2,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     borderLeftWidth: 4,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 3,
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  statIcon: {
-    marginRight: 12,
   },
   statContent: {
     flex: 1,
@@ -534,117 +482,52 @@ const styles = StyleSheet.create({
     color: '#666',
     marginTop: 4,
   },
+  statIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginLeft: 8,
+  },
   statusGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    justifyContent: 'space-between',
+    marginTop: 12,
+    marginHorizontal: -6,
   },
   statusCard: {
-    width: (width - 48) / 2,
     backgroundColor: '#fff',
     borderRadius: 12,
-    padding: 12,
-    marginBottom: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  statusDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    marginRight: 12,
-  },
-  statusContent: {
+    padding: 16,
+    margin: 6,
     flex: 1,
+    minWidth: (width - 60) / 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  statusIndicator: {
+    width: 32,
+    height: 4,
+    borderRadius: 2,
+    marginBottom: 12,
   },
   statusLabel: {
     fontSize: 12,
     color: '#666',
+    marginBottom: 4,
   },
   statusCount: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    marginVertical: 2,
-  },
-  statusPercentage: {
-    fontSize: 11,
-    color: '#999',
-  },
-  departmentCard: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  departmentHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  departmentName: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#333',
-  },
-  departmentRate: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#4CAF50',
-  },
-  departmentStats: {
-    marginBottom: 8,
-  },
-  departmentDetail: {
-    fontSize: 14,
-    color: '#666',
-  },
-  progressBar: {
-    height: 6,
-    backgroundColor: '#E0E0E0',
-    borderRadius: 3,
-    overflow: 'hidden',
-  },
-  progressFill: {
-    height: '100%',
-    borderRadius: 3,
-  },
-  monthlyCard: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    padding: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  monthlyMonth: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#333',
-    marginBottom: 16,
-  },
-  monthlyStats: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-  },
-  monthlyStatItem: {
-    alignItems: 'center',
-  },
-  monthlyStatValue: {
     fontSize: 24,
     fontWeight: 'bold',
-    color: '#2196F3',
+    color: '#333',
   },
-  monthlyStatLabel: {
+  statusPercentage: {
     fontSize: 12,
-    color: '#666',
+    color: '#999',
     marginTop: 4,
   },
   alertCard: {
@@ -658,7 +541,7 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
-    elevation: 2,
+    elevation: 3,
   },
   alertContent: {
     flex: 1,
@@ -674,38 +557,29 @@ const styles = StyleSheet.create({
     color: '#666',
     marginTop: 4,
   },
-  moreAlertsText: {
-    textAlign: 'center',
-    color: '#2196F3',
-    fontSize: 14,
-    fontWeight: '600',
-    marginTop: 8,
-  },
   actionButtons: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    justifyContent: 'space-between',
+    marginHorizontal: -6,
   },
   actionButton: {
-    width: (width - 48) / 2,
     backgroundColor: '#fff',
     borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
+    padding: 20,
+    margin: 6,
+    flex: 1,
+    minWidth: (width - 60) / 2,
     alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: '#E0E0E0',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
-    elevation: 2,
+    elevation: 3,
   },
   actionButtonText: {
     fontSize: 14,
-    fontWeight: '600',
     color: '#2196F3',
+    fontWeight: '600',
     marginTop: 8,
   },
 });

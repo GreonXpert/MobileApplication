@@ -1,4 +1,4 @@
-// src/services/api.js
+// src/services/api.js - COMPLETE FIXED VERSION
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
@@ -49,7 +49,7 @@ api.interceptors.request.use(
   async (config) => {
     try {
       // Get token from AsyncStorage
-      const token = await AsyncStorage.getItem('userToken');
+      const token = await AsyncStorage.getItem('token');
       
       if (token) {
         // Add token to Authorization header
@@ -84,8 +84,8 @@ api.interceptors.response.use(
     // Handle 401 Unauthorized (token expired or invalid)
     if (error.response?.status === 401) {
       // Clear stored token
-      await AsyncStorage.removeItem('userToken');
-      await AsyncStorage.removeItem('userData');
+      await AsyncStorage.removeItem('token');
+      await AsyncStorage.removeItem('user');
       
       // You can add navigation to login screen here if needed
       // navigationRef.navigate('Login');
@@ -101,14 +101,10 @@ api.interceptors.response.use(
 
 // Authentication
 export const authAPI = {
-  login: async (username, password) => {
+  login: async (credentials) => {
     try {
-      // Send plain object - axios will handle JSON stringification
-      const response = await api.post('/auth/login', {
-        username: username,
-        password: password
-      });
-      return response;
+      const response = await api.post('/auth/login', credentials);
+      return response.data; // ✅ Return only the data
     } catch (error) {
       console.error('Login API error:', error);
       throw error;
@@ -118,7 +114,7 @@ export const authAPI = {
   verifyToken: async () => {
     try {
       const response = await api.get('/auth/verify');
-      return response;
+      return response.data; // ✅ Return only the data
     } catch (error) {
       console.error('Verify token error:', error);
       throw error;
@@ -128,22 +124,33 @@ export const authAPI = {
 
 // Employee Management
 export const employeeAPI = {
- getAll: async () => {
-    return await api.get('/admin/employees');
+  getAll: async () => {
+    const response = await api.get('/admin/employees');
+    return response.data; // ✅ Return only the data
   },
   
   getById: async (id) => {
-    return await api.get(`/admin/employees/${id}`);
+    const response = await api.get(`/admin/employees/${id}`);
+    return response.data; // ✅ Return only the data
   },
   
   create: async (employeeData) => {
-    return await api.post('/admin/employees', employeeData);
+    const response = await api.post('/admin/employees', employeeData);
+    return response.data; // ✅ Return only the data
   },
+  
+  update: async (id, employeeData) => {
+    const response = await api.put(`/admin/employees/${id}`, employeeData);
+    return response.data; // ✅ Return only the data
+  },
+  
+  delete: async (id) => {
+    const response = await api.delete(`/admin/employees/${id}`);
+    return response.data; // ✅ Return only the data
+  },
+  
   /**
    * Get attendance history for an employee
-   * @param {string} employeeId - Employee ID
-   * @param {Object} dateRange - { startDate, endDate } optional
-   * @returns {Promise} Attendance records
    */
   getAttendanceHistory: async (employeeId, dateRange = {}) => {
     const params = new URLSearchParams();
@@ -151,19 +158,87 @@ export const employeeAPI = {
     if (dateRange.endDate) params.append('endDate', dateRange.endDate);
     
     const response = await api.get(`/admin/attendance/history/${employeeId}?${params}`);
-    return response.data;
+    return response.data; // ✅ Return only the data
   },
 };
 
 // Attendance Management
 export const attendanceAPI = {
   mark: async (attendanceData) => {
-    return await api.post('/admin/attendance/mark', attendanceData);
+    const response = await api.post('/admin/attendance/mark', attendanceData);
+    return response.data; // ✅ Return only the data
   },
   
   getHistory: async (employeeId, params = {}) => {
     const queryString = new URLSearchParams(params).toString();
-    return await api.get(`/admin/attendance/history/${employeeId}?${queryString}`);
+    const response = await api.get(`/admin/attendance/history/${employeeId}?${queryString}`);
+    return response.data; // ✅ Return only the data
+  },
+  
+  getDailyAttendance: async (date) => {
+    const params = date ? `?date=${date}` : '';
+    const response = await api.get(`/admin/attendance/daily${params}`);
+    return response.data; // ✅ Return only the data
+  },
+};
+
+// Dashboard API
+export const dashboardAPI = {
+  // Get dashboard statistics
+  getStats: async () => {
+    const response = await api.get('/admin/dashboard/stats');
+    return response.data; // ✅ Return only the data
+  },
+  
+  // Get daily attendance with all employee details
+  getDailyAttendance: async (date) => {
+    const params = date ? `?date=${date}` : '';
+    const response = await api.get(`/admin/dashboard/daily-attendance${params}`);
+    return response.data; // ✅ Return only the data
+  },
+  
+  // Get employee attendance history
+  getEmployeeHistory: async (employeeId, params = {}) => {
+    const queryString = new URLSearchParams(params).toString();
+    const response = await api.get(`/admin/dashboard/employee-history/${employeeId}?${queryString}`);
+    return response.data; // ✅ Return only the data
+  },
+  
+  // Get monthly report
+  getMonthlyReport: async (month, year) => {
+    const params = new URLSearchParams();
+    if (month) params.append('month', month);
+    if (year) params.append('year', year);
+    const response = await api.get(`/admin/dashboard/monthly-report?${params.toString()}`);
+    return response.data; // ✅ Return only the data
+  },
+};
+
+// Superadmin Dashboard API
+export const superadminDashboardAPI = {
+  // Get overview
+  getOverview: async () => {
+    const response = await api.get('/superadmin/dashboard/overview');
+    return response.data; // ✅ Return only the data
+  },
+  
+  // Get analytics
+  getAnalytics: async (period = 'month') => {
+    const response = await api.get(`/superadmin/dashboard/analytics?period=${period}`);
+    return response.data; // ✅ Return only the data
+  },
+  
+  // Get alerts
+  getAlerts: async () => {
+    const response = await api.get('/superadmin/dashboard/alerts');
+    return response.data; // ✅ Return only the data
+  },
+  
+  // Get all attendance (superadmin feed)
+  getAllAttendance: async (params = {}) => {
+    const queryString = new URLSearchParams(params).toString();
+    const response = await api.get(`/superadmin/attendance?${queryString}`);
+    return response.data; // ✅ Return only the data
   },
 };
 
@@ -186,55 +261,4 @@ export const handleAPIError = (error) => {
     // Something else happened
     return error.message || 'An unexpected error occurred';
   }
-};
-// Dashboard API (NEW)
-export const dashboardAPI = {
-  // Get dashboard statistics
-  getStats: async () => {
-    return await api.get('/admin/dashboard/stats');
-  },
-  
-  // Get daily attendance with all employee details
-  getDailyAttendance: async (date) => {
-    const params = date ? `?date=${date}` : '';
-    return await api.get(`/admin/dashboard/daily-attendance${params}`);
-  },
-  
-  // Get employee attendance history
-  getEmployeeHistory: async (employeeId, params = {}) => {
-    const queryString = new URLSearchParams(params).toString();
-    return await api.get(`/admin/dashboard/employee-history/${employeeId}?${queryString}`);
-  },
-  
-  // Get monthly report
-  getMonthlyReport: async (month, year) => {
-    const params = new URLSearchParams();
-    if (month) params.append('month', month);
-    if (year) params.append('year', year);
-    return await api.get(`/admin/dashboard/monthly-report?${params.toString()}`);
-  },
-};
-
-// Superadmin Dashboard API (if user is superadmin)
-export const superadminDashboardAPI = {
-  // Get overview
-  getOverview: async () => {
-    return await api.get('/superadmin/dashboard/overview');
-  },
-  
-  // Get analytics
-  getAnalytics: async (period = 'month') => {
-    return await api.get(`/superadmin/dashboard/analytics?period=${period}`);
-  },
-  
-  // Get alerts
-  getAlerts: async () => {
-    return await api.get('/superadmin/dashboard/alerts');
-  },
-  
-  // Get all attendance (superadmin feed)
-  getAllAttendance: async (params = {}) => {
-    const queryString = new URLSearchParams(params).toString();
-    return await api.get(`/superadmin/attendance?${queryString}`);
-  },
 };

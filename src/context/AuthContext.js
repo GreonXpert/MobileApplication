@@ -48,7 +48,7 @@ export const AuthProvider = ({ children }) => {
 
   const login = async (username, password) => {
     try {
-      const response = await authAPI.login(username, password);
+      const response = await authAPI.login({ username, password });
 
       if (response.success && response.token) {
         // Save token
