@@ -1,4 +1,4 @@
-// src/screens/LoginScreen.js
+// src/screens/LoginScreen.js - FIXED VERSION
 import React, { useState } from 'react';
 import {
   View,
@@ -17,11 +17,6 @@ import { useAuth } from '../context/AuthContext';
  * Login Screen
  * 
  * Allows Admin users to log in using credentials configured in backend .env
- * Features:
- * - Username and password input
- * - JWT-based authentication
- * - Error handling
- * - Loading state
  */
 const LoginScreen = ({ navigation }) => {
   const { login } = useAuth();
@@ -33,91 +28,100 @@ const LoginScreen = ({ navigation }) => {
   /**
    * Handle login button press
    */
- const handleLogin = async () => {
-  const cleanedUsername = username.trim().toLowerCase();
-  const cleanedPassword = password.trim();
+  const handleLogin = async () => {
+    // Clean the inputs - trim whitespace
+    const cleanedUsername = username.trim();
+    const cleanedPassword = password.trim();
 
-  if (!cleanedUsername || !cleanedPassword) {
-    Alert.alert('Error', 'Please enter both username and password');
-    return;
-  }
-
-  try {
-    setIsLoading(true);
-
-    const result = await login(cleanedUsername, cleanedPassword);
-
-    if (!result.success) {
-      Alert.alert('Login Failed', result.message || 'Invalid credentials');
+    // Validate inputs
+    if (!cleanedUsername || !cleanedPassword) {
+      Alert.alert('Error', 'Please enter both username and password');
+      return;
     }
-  } catch (error) {
-    Alert.alert('Error', 'An unexpected error occurred. Please try again.');
-    console.error('Login error:', error);
-  } finally {
-    setIsLoading(false);
-  }
-};
 
+    try {
+      setIsLoading(true);
+      
+      console.log('🔐 Attempting login with username:', cleanedUsername);
+
+      // Call login - pass plain strings, NOT JSON
+      const result = await login(cleanedUsername, cleanedPassword);
+      
+      console.log('📥 Login result:', result);
+
+      if (!result.success) {
+        Alert.alert('Login Failed', result.message || 'Invalid credentials');
+      }
+      // If successful, AuthContext will handle navigation
+    } catch (error) {
+      console.error('❌ Login error:', error);
+      Alert.alert('Error', 'An unexpected error occurred. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   return (
     <KeyboardAvoidingView
       style={styles.container}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
-      <View style={styles.content}>
-        {/* App Title */}
-        <View style={styles.header}>
+      <View style={styles.formContainer}>
+        {/* Header */}
+        <View style={styles.headerContainer}>
           <Text style={styles.title}>Auto Attendance</Text>
           <Text style={styles.subtitle}>Tracking System</Text>
         </View>
 
-        {/* Login Form */}
-        <View style={styles.form}>
-          {/* Username Input */}
-          <View style={styles.inputContainer}>
-            <Text style={styles.label}>Username</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="Enter username"
-              value={username}
-              onChangeText={setUsername}
-              autoCapitalize="none"
-              autoCorrect={false}
-              editable={!isLoading}
-            />
-          </View>
+        {/* Username Input */}
+        <View style={styles.inputContainer}>
+          <Text style={styles.label}>Username</Text>
+          <TextInput
+            style={styles.input}
+            placeholder="Enter username"
+            value={username}
+            onChangeText={setUsername}
+            autoCapitalize="none"
+            autoCorrect={false}
+            editable={!isLoading}
+          />
+        </View>
 
-          {/* Password Input */}
-          <View style={styles.inputContainer}>
-            <Text style={styles.label}>Password</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="Enter password"
-              value={password}
-              onChangeText={setPassword}
-              secureTextEntry
-              autoCapitalize="none"
-              autoCorrect={false}
-              editable={!isLoading}
-            />
-          </View>
+        {/* Password Input */}
+        <View style={styles.inputContainer}>
+          <Text style={styles.label}>Password</Text>
+          <TextInput
+            style={styles.input}
+            placeholder="Enter password"
+            value={password}
+            onChangeText={setPassword}
+            secureTextEntry
+            autoCapitalize="none"
+            autoCorrect={false}
+            editable={!isLoading}
+          />
+        </View>
 
-          {/* Login Button */}
-          <TouchableOpacity
-            style={[styles.button, isLoading && styles.buttonDisabled]}
-            onPress={handleLogin}
-            disabled={isLoading}
-          >
-            {isLoading ? (
-              <ActivityIndicator color="#fff" />
-            ) : (
-              <Text style={styles.buttonText}>Login</Text>
-            )}
-          </TouchableOpacity>
+        {/* Login Button */}
+        <TouchableOpacity
+          style={[styles.loginButton, isLoading && styles.loginButtonDisabled]}
+          onPress={handleLogin}
+          disabled={isLoading}
+        >
+          {isLoading ? (
+            <ActivityIndicator size="small" color="#fff" />
+          ) : (
+            <Text style={styles.loginButtonText}>Login</Text>
+          )}
+        </TouchableOpacity>
 
-          {/* Help Text */}
-          <Text style={styles.helpText}>
-            Admin credentials are configured in backend .env file
+        {/* Info Text */}
+        <View style={styles.infoContainer}>
+          <Text style={styles.infoText}>
+            Use your admin or superadmin credentials
+          </Text>
+          <Text style={styles.infoSubtext}>
+            Contact system administrator if you need help
           </Text>
         </View>
       </View>
@@ -128,36 +132,26 @@ const LoginScreen = ({ navigation }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: '#2196F3',
   },
-  content: {
+  formContainer: {
     flex: 1,
     justifyContent: 'center',
-    padding: 20,
+    paddingHorizontal: 32,
   },
-  header: {
+  headerContainer: {
     alignItems: 'center',
-    marginBottom: 50,
+    marginBottom: 48,
   },
   title: {
     fontSize: 32,
     fontWeight: 'bold',
-    color: '#2196F3',
-    marginBottom: 5,
+    color: '#fff',
+    marginBottom: 8,
   },
   subtitle: {
     fontSize: 18,
-    color: '#666',
-  },
-  form: {
-    backgroundColor: '#fff',
-    borderRadius: 10,
-    padding: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    color: '#E3F2FD',
   },
   inputContainer: {
     marginBottom: 20,
@@ -165,37 +159,50 @@ const styles = StyleSheet.create({
   label: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#333',
+    color: '#fff',
     marginBottom: 8,
   },
   input: {
-    borderWidth: 1,
-    borderColor: '#ddd',
+    backgroundColor: '#fff',
     borderRadius: 8,
-    padding: 12,
+    padding: 16,
     fontSize: 16,
-    backgroundColor: '#f9f9f9',
+    color: '#333',
   },
-  button: {
-    backgroundColor: '#2196F3',
+  loginButton: {
+    backgroundColor: '#1976D2',
     borderRadius: 8,
     padding: 16,
     alignItems: 'center',
-    marginTop: 10,
+    marginTop: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 4,
   },
-  buttonDisabled: {
-    backgroundColor: '#999',
+  loginButtonDisabled: {
+    backgroundColor: '#64B5F6',
   },
-  buttonText: {
+  loginButtonText: {
     color: '#fff',
     fontSize: 16,
     fontWeight: 'bold',
   },
-  helpText: {
-    marginTop: 15,
-    fontSize: 12,
-    color: '#999',
+  infoContainer: {
+    marginTop: 32,
+    alignItems: 'center',
+  },
+  infoText: {
+    fontSize: 14,
+    color: '#E3F2FD',
     textAlign: 'center',
+  },
+  infoSubtext: {
+    fontSize: 12,
+    color: '#BBDEFB',
+    textAlign: 'center',
+    marginTop: 8,
   },
 });
 

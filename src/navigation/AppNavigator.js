@@ -1,4 +1,4 @@
-// src/navigation/AppNavigator.js
+// src/navigation/AppNavigator.js - UPDATED VERSION
 import React from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
@@ -6,10 +6,13 @@ import { ActivityIndicator, View, StyleSheet } from 'react-native';
 
 // Import screens
 import LoginScreen from '../screens/LoginScreen';
-import EmployeeListScreen from '../screens/EmployeeListScreen';
+import BottomTabNavigator from './BottomTabNavigator';
 import EmployeeCreateScreen from '../screens/EmployeeCreateScreen';
 import AttendanceCalendarScreen from '../screens/AttendanceCalendarScreen';
 import AttendanceMarkScreen from '../screens/AttendanceMarkScreen';
+import AttendanceHistoryScreen from '../screens/AttendanceHistoryScreen';
+import DailyAttendanceScreen from '../screens/DailyAttendanceScreen';
+import EmployeeDetailScreen from '../screens/EmployeeDetailScreen';
 
 // Import auth context
 import { useAuth } from '../context/AuthContext';
@@ -36,7 +39,7 @@ const AuthStack = () => {
         name="Login"
         component={LoginScreen}
         options={{
-          headerShown: false, // Hide header on login screen
+          headerShown: false,
         }}
       />
     </Stack.Navigator>
@@ -45,6 +48,7 @@ const AuthStack = () => {
 
 /**
  * Main Stack - Screens accessible after login
+ * Now uses BottomTabNavigator as the main screen
  */
 const MainStack = () => {
   return (
@@ -59,19 +63,29 @@ const MainStack = () => {
         },
       }}
     >
+      {/* Bottom Tab Navigator as main screen */}
       <Stack.Screen
-        name="EmployeeList"
-        component={EmployeeListScreen}
+        name="MainTabs"
+        component={BottomTabNavigator}
         options={{
-          title: 'Employees',
-          headerLeft: null, // Disable back button on main screen
+          headerShown: false, // Tabs have their own headers
         }}
       />
+      
+      {/* Additional screens that can be accessed from tabs */}
       <Stack.Screen
         name="EmployeeCreate"
         component={EmployeeCreateScreen}
         options={{
           title: 'Create Employee',
+          presentation: 'modal',
+        }}
+      />
+      <Stack.Screen
+        name="EmployeeDetail"
+        component={EmployeeDetailScreen}
+        options={{
+          title: 'Employee Details',
         }}
       />
       <Stack.Screen
@@ -86,6 +100,20 @@ const MainStack = () => {
         component={AttendanceMarkScreen}
         options={{
           title: 'Mark Attendance',
+        }}
+      />
+      <Stack.Screen
+        name="AttendanceHistory"
+        component={AttendanceHistoryScreen}
+        options={{
+          title: 'Attendance History',
+        }}
+      />
+      <Stack.Screen
+        name="DailyAttendance"
+        component={DailyAttendanceScreen}
+        options={{
+          title: 'Daily Attendance',
         }}
       />
     </Stack.Navigator>
