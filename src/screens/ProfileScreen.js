@@ -1,4 +1,4 @@
-// src/screens/ProfileScreen.js
+// src/screens/ProfileScreen.js - FIXED VERSION
 import React from 'react';
 import {
   View,
@@ -87,7 +87,9 @@ const ProfileScreen = ({ navigation }) => {
         </View>
         <Text style={styles.userName}>{user?.username || 'User'}</Text>
         <View style={styles.roleBadge}>
-          <Text style={styles.roleText}>{user?.role || 'ADMIN'}</Text>
+          <Text style={styles.roleText}>
+            {user?.role?.toUpperCase() || 'ADMIN'}
+          </Text>
         </View>
       </View>
 
@@ -97,11 +99,11 @@ const ProfileScreen = ({ navigation }) => {
         {renderInfoCard('Username', user?.username || 'N/A')}
         {renderInfoCard('Role', user?.role || 'N/A')}
         {renderInfoCard(
-  'Permissions',
-  user?.role?.toLowerCase() === 'superadmin'  // Add toLowerCase()
-    ? 'Full System Access'
-    : 'Employee & Attendance Management'
-)}
+          'Permissions',
+          user?.role?.toLowerCase() === 'superadmin'
+            ? 'Full System Access'
+            : 'Employee & Attendance Management'
+        )}
       </View>
 
       {/* App Settings */}

@@ -1,4 +1,4 @@
-// src/screens/DashboardScreen.js - FIXED VERSION
+// src/screens/DashboardScreen.js - FULLY FIXED VERSION WITH NULL SAFETY
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
@@ -18,7 +18,7 @@ import { useAuth } from '../context/AuthContext';
 const { width } = Dimensions.get('window');
 
 /**
- * Dashboard Screen
+ * Dashboard Screen  
  * 
  * Main dashboard showing:
  * - Today's attendance statistics
@@ -30,8 +30,17 @@ const { width } = Dimensions.get('window');
 const DashboardScreen = ({ navigation }) => {
   const { user } = useAuth();
   
-  // ✅ FIX: Case-insensitive role check with proper null safety
-  const isSuperadmin = user?.role?.toLowerCase() === 'superadmin';
+  // ✅ FIX: Comprehensive null safety with proper fallback
+  console.log('📊 Dashboard - User object:', JSON.stringify(user, null, 2));
+  
+  // ✅ Ensure role exists and is a string before processing
+  const userRole = user && user.role && typeof user.role === 'string' 
+    ? user.role.toLowerCase().trim() 
+    : 'admin';
+  
+  console.log('📊 Dashboard - Processed role:', userRole);
+  
+  const isSuperadmin = userRole === 'superadmin';
   
   const [stats, setStats] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -43,6 +52,8 @@ const DashboardScreen = ({ navigation }) => {
    */
   const fetchDashboardData = async () => {
     try {
+      console.log('📊 Fetching dashboard data for role:', userRole, 'isSuperadmin:', isSuperadmin);
+      
       if (isSuperadmin) {
         // Fetch superadmin overview
         const [overviewResponse, alertsResponse] = await Promise.all([
@@ -65,7 +76,7 @@ const DashboardScreen = ({ navigation }) => {
         }
       }
     } catch (error) {
-      console.error('Error fetching dashboard data:', error);
+      console.error('❌ Error fetching dashboard data:', error);
       Alert.alert('Error', 'Failed to load dashboard data. Please try again.');
     } finally {
       setIsLoading(false);
@@ -178,6 +189,12 @@ const DashboardScreen = ({ navigation }) => {
     );
   };
 
+  // ✅ Safe role display with proper null checking
+  const getRoleDisplay = () => {
+    if (!userRole || typeof userRole !== 'string') return 'Admin';
+    return userRole.charAt(0).toUpperCase() + userRole.slice(1);
+  };
+
   if (isLoading) {
     return (
       <View style={styles.loadingContainer}>
@@ -209,9 +226,7 @@ const DashboardScreen = ({ navigation }) => {
       {/* Welcome Section */}
       <View style={styles.welcomeSection}>
         <Text style={styles.welcomeText}>Welcome back!</Text>
-        <Text style={styles.userRole}>
-          {user?.role ? user.role.charAt(0).toUpperCase() + user.role.slice(1) : 'Admin'}
-        </Text>
+        <Text style={styles.userRole}>{getRoleDisplay()}</Text>
       </View>
 
       {/* Quick Stats for Admin */}
@@ -313,7 +328,7 @@ const DashboardScreen = ({ navigation }) => {
       )}
 
       {/* Alerts (Superadmin only) */}
-      {isSuperadmin && alerts.length > 0 && (
+      {isSuperadmin && alerts && alerts.length > 0 && (
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>System Alerts</Text>
@@ -350,18 +365,17 @@ const DashboardScreen = ({ navigation }) => {
               style={styles.actionButton}
               onPress={handleViewAnalytics}
             >
-              <Ionicons name="stats-chart-outline" size={24} color="#2196F3" />
+              <Ionicons name="analytics-outline" size={24} color="#2196F3" />
               <Text style={styles.actionButtonText}>Analytics</Text>
             </TouchableOpacity>
           )}
         </View>
       </View>
-
-      {/* Bottom Padding */}
-      <View style={{ height: 30 }} />
     </ScrollView>
   );
 };
+
+// ... (styles remain the same, continuing with styles object)
 
 const styles = StyleSheet.create({
   container: {
@@ -375,7 +389,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#F5F5F5',
   },
   loadingText: {
-    marginTop: 12,
+    marginTop: 16,
     fontSize: 16,
     color: '#666',
   },
@@ -384,7 +398,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     backgroundColor: '#F5F5F5',
-    padding: 20,
+    padding: 32,
   },
   errorText: {
     fontSize: 18,
@@ -405,42 +419,40 @@ const styles = StyleSheet.create({
   },
   welcomeSection: {
     backgroundColor: '#2196F3',
-    padding: 20,
+    padding: 24,
     paddingTop: 16,
   },
   welcomeText: {
     fontSize: 28,
     fontWeight: 'bold',
     color: '#fff',
+    marginBottom: 4,
   },
   userRole: {
     fontSize: 16,
     color: '#E3F2FD',
-    marginTop: 4,
-    textTransform: 'capitalize',
   },
   section: {
     padding: 16,
   },
   sectionHeader: {
     flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: 16,
   },
   sectionTitle: {
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: 'bold',
     color: '#333',
-    flex: 1,
   },
   alertBadge: {
     backgroundColor: '#F44336',
     borderRadius: 12,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
     minWidth: 24,
-    height: 24,
-    justifyContent: 'center',
     alignItems: 'center',
-    paddingHorizontal: 6,
   },
   alertBadgeText: {
     color: '#fff',
@@ -448,20 +460,15 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
   },
   quickStats: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    marginHorizontal: -6,
+    gap: 12,
   },
   statCard: {
     backgroundColor: '#fff',
     borderRadius: 12,
-    padding: 16,
-    margin: 6,
-    flex: 1,
-    minWidth: (width - 48) / 2,
+    padding: 20,
     flexDirection: 'row',
-    alignItems: 'center',
     justifyContent: 'space-between',
+    alignItems: 'center',
     borderLeftWidth: 4,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
@@ -473,27 +480,27 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   statValue: {
-    fontSize: 24,
+    fontSize: 28,
     fontWeight: 'bold',
     color: '#333',
   },
   statTitle: {
-    fontSize: 12,
+    fontSize: 14,
     color: '#666',
     marginTop: 4,
   },
   statIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
     justifyContent: 'center',
     alignItems: 'center',
-    marginLeft: 8,
+    marginLeft: 16,
   },
   statusGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    marginTop: 12,
+    marginTop: 16,
     marginHorizontal: -6,
   },
   statusCard: {
