@@ -1,4 +1,4 @@
-// src/screens/DashboardScreen.js - FULLY FIXED VERSION WITH NULL SAFETY
+// src/screens/DashboardScreen.js
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
@@ -17,66 +17,46 @@ import { useAuth } from '../context/AuthContext';
 
 const { width } = Dimensions.get('window');
 
-/**
- * Dashboard Screen  
- * 
- * Main dashboard showing:
- * - Today's attendance statistics
- * - Monthly summary
- * - Department-wise breakdown
- * - Quick actions
- * - Recent activity
- */
 const DashboardScreen = ({ navigation }) => {
   const { user } = useAuth();
-  
-  // ✅ FIX: Comprehensive null safety with proper fallback
-  console.log('📊 Dashboard - User object:', JSON.stringify(user, null, 2));
-  
-  // ✅ Ensure role exists and is a string before processing
-  const userRole = user && user.role && typeof user.role === 'string' 
-    ? user.role.toLowerCase().trim() 
-    : 'admin';
-  
-  console.log('📊 Dashboard - Processed role:', userRole);
-  
+
+  const userRole = React.useMemo(() => {
+    if (!user || !user.role || typeof user.role !== 'string') {
+      return 'admin';
+    }
+    return user.role.toLowerCase().trim();
+  }, [user]);
+
   const isSuperadmin = userRole === 'superadmin';
-  
+
   const [stats, setStats] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [alerts, setAlerts] = useState([]);
 
-  /**
-   * Fetch dashboard data
-   */
   const fetchDashboardData = async () => {
     try {
-      console.log('📊 Fetching dashboard data for role:', userRole, 'isSuperadmin:', isSuperadmin);
-      
       if (isSuperadmin) {
-        // Fetch superadmin overview
         const [overviewResponse, alertsResponse] = await Promise.all([
           superadminDashboardAPI.getOverview(),
           superadminDashboardAPI.getAlerts(),
         ]);
-        
+
         if (overviewResponse?.success) {
           setStats(overviewResponse.overview);
         }
-        
+
         if (alertsResponse?.success) {
           setAlerts(alertsResponse.alerts || []);
         }
       } else {
-        // Fetch admin stats
         const response = await dashboardAPI.getStats();
         if (response?.success) {
           setStats(response.stats);
         }
       }
     } catch (error) {
-      console.error('❌ Error fetching dashboard data:', error);
+      console.error('Error fetching dashboard data:', error);
       Alert.alert('Error', 'Failed to load dashboard data. Please try again.');
     } finally {
       setIsLoading(false);
@@ -84,85 +64,63 @@ const DashboardScreen = ({ navigation }) => {
     }
   };
 
-  /**
-   * Load data on mount and when screen comes into focus
-   */
   useEffect(() => {
     const unsubscribe = navigation.addListener('focus', () => {
       fetchDashboardData();
     });
-
     return unsubscribe;
   }, [navigation, isSuperadmin]);
 
-  /**
-   * Handle pull-to-refresh
-   */
   const onRefresh = useCallback(() => {
     setRefreshing(true);
     fetchDashboardData();
   }, [isSuperadmin]);
 
-  /**
-   * Navigate to daily attendance view
-   */
   const handleViewDailyAttendance = () => {
     navigation.navigate('DailyAttendance');
   };
 
-  /**
-   * Navigate to employee list
-   */
   const handleViewEmployees = () => {
     navigation.navigate('Employees');
   };
 
-  /**
-   * Navigate to analytics (superadmin only)
-   */
   const handleViewAnalytics = () => {
     Alert.alert('Analytics', 'Detailed analytics coming soon!');
   };
 
-  /**
-   * Render stat card
-   */
   const renderStatCard = (title, value, icon, color, onPress) => (
     <TouchableOpacity
-      style={[styles.statCard, { borderLeftColor: color }]}
+      style={[styles.statCard, { borderColor: `${color}40` }]}
       onPress={onPress}
-      activeOpacity={onPress ? 0.7 : 1}
+      activeOpacity={onPress ? 0.8 : 1}
       disabled={!onPress}
     >
-      <View style={styles.statContent}>
-        <Text style={styles.statValue}>{value || 0}</Text>
-        <Text style={styles.statTitle}>{title}</Text>
+      <View style={styles.statCardLeft}>
+        <Text style={styles.statCardLabel}>{title}</Text>
+        <Text style={styles.statCardValue}>{value || 0}</Text>
       </View>
-      <View style={[styles.statIcon, { backgroundColor: `${color}20` }]}>
-        <Ionicons name={icon} size={28} color={color} />
+      <View style={[styles.statCardIconWrap, { backgroundColor: `${color}15` }]}>
+        <Ionicons name={icon} size={26} color={color} />
       </View>
     </TouchableOpacity>
   );
 
-  /**
-   * Render status card (for attendance breakdown)
-   */
-  const renderStatusCard = (label, count, total, color) => (
-    <View style={styles.statusCard}>
-      <View style={[styles.statusIndicator, { backgroundColor: color }]} />
-      <Text style={styles.statusLabel}>{label}</Text>
-      <Text style={styles.statusCount}>{count || 0}</Text>
-      {total > 0 && (
-        <Text style={styles.statusPercentage}>
-          {((count / total) * 100).toFixed(0)}%
-        </Text>
-      )}
-    </View>
-  );
+  const renderStatusCard = (label, count, total, color) => {
+    const pct = total > 0 ? ((count / total) * 100).toFixed(0) : '0';
+    return (
+      <View style={styles.statusCard}>
+        <View style={styles.statusTopRow}>
+          <View style={[styles.statusDotLarge, { backgroundColor: color }]} />
+          <Text style={styles.statusLabel}>{label}</Text>
+        </View>
+        <View style={styles.statusBottomRow}>
+          <Text style={styles.statusCount}>{count || 0}</Text>
+          <Text style={[styles.statusPercentage, { color }]}>{pct}%</Text>
+        </View>
+      </View>
+    );
+  };
 
-  /**
-   * Render alert card
-   */
   const renderAlert = (alert, index) => {
     const alertColors = {
       high: '#F44336',
@@ -172,11 +130,18 @@ const DashboardScreen = ({ navigation }) => {
 
     return (
       <View key={index} style={styles.alertCard}>
-        <Ionicons
-          name="alert-circle"
-          size={24}
-          color={alertColors[alert.severity] || '#2196F3'}
-        />
+        <View
+          style={[
+            styles.alertIconWrap,
+            { backgroundColor: `${alertColors[alert.severity] || '#2196F3'}15` },
+          ]}
+        >
+          <Ionicons
+            name="alert-circle"
+            size={22}
+            color={alertColors[alert.severity] || '#2196F3'}
+          />
+        </View>
         <View style={styles.alertContent}>
           <Text style={styles.alertMessage}>{alert.message}</Text>
           {alert.details && Array.isArray(alert.details) && (
@@ -189,7 +154,6 @@ const DashboardScreen = ({ navigation }) => {
     );
   };
 
-  // ✅ Safe role display with proper null checking
   const getRoleDisplay = () => {
     if (!userRole || typeof userRole !== 'string') return 'Admin';
     return userRole.charAt(0).toUpperCase() + userRole.slice(1);
@@ -216,177 +180,232 @@ const DashboardScreen = ({ navigation }) => {
     );
   }
 
+  const todayStats = stats.today || {};
+  const totalEmployees = stats.totalEmployees || stats.system?.totalEmployees || 0;
+
   return (
-    <ScrollView
-      style={styles.container}
-      refreshControl={
-        <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-      }
-    >
-      {/* Welcome Section */}
-      <View style={styles.welcomeSection}>
-        <Text style={styles.welcomeText}>Welcome back!</Text>
-        <Text style={styles.userRole}>{getRoleDisplay()}</Text>
-      </View>
-
-      {/* Quick Stats for Admin */}
-      {!isSuperadmin && stats.today && (
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Today's Overview</Text>
-          <View style={styles.quickStats}>
-            {renderStatCard(
-              'Total Employees',
-              stats.totalEmployees || 0,
-              'people',
-              '#2196F3'
-            )}
-            {renderStatCard(
-              'Present Today',
-              stats.today.present || 0,
-              'checkmark-circle',
-              '#4CAF50',
-              handleViewDailyAttendance
-            )}
-            {renderStatCard(
-              'Absent Today',
-              stats.today.absent || 0,
-              'close-circle',
-              '#F44336'
-            )}
-            {renderStatCard(
-              'Attendance Rate',
-              `${stats.today.attendanceRate || 0}%`,
-              'stats-chart',
-              '#4CAF50',
-              handleViewDailyAttendance
-            )}
+    <View style={styles.screen}>
+      <View style={styles.accentCircle} />
+      <ScrollView
+        style={styles.container}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+        }
+        contentContainerStyle={styles.scrollContent}
+      >
+        {/* Hero / welcome header */}
+        <View style={styles.welcomeCard}>
+          <View style={styles.welcomeLeft}>
+            <Text style={styles.welcomeTitle}>Attendance dashboard</Text>
+            <Text style={styles.welcomeSubtitle}>
+              Role: {getRoleDisplay()}
+            </Text>
           </View>
-
-          {/* Attendance Status Breakdown */}
-          <View style={styles.statusGrid}>
-            {renderStatusCard(
-              'Present',
-              stats.today.present || 0,
-              stats.totalEmployees || 0,
-              '#4CAF50'
-            )}
-            {renderStatusCard(
-              'Absent',
-              stats.today.absent || 0,
-              stats.totalEmployees || 0,
-              '#F44336'
-            )}
-            {renderStatusCard(
-              'Late',
-              stats.today.late || 0,
-              stats.totalEmployees || 0,
-              '#FF9800'
-            )}
-            {renderStatusCard(
-              'Not Marked',
-              stats.today.notMarked || 0,
-              stats.totalEmployees || 0,
-              '#9E9E9E'
-            )}
+          <View style={styles.welcomeBadge}>
+            <Ionicons name="calendar-outline" size={18} color="#FFFFFF" />
+            <Text style={styles.welcomeBadgeText}>Today</Text>
           </View>
         </View>
-      )}
 
-      {/* Quick Stats for Superadmin */}
-      {isSuperadmin && stats.system && (
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>System Overview</Text>
-          <View style={styles.quickStats}>
-            {renderStatCard(
-              'Total Employees',
-              stats.system.totalEmployees || 0,
-              'people',
-              '#2196F3',
-              handleViewEmployees
-            )}
-            {renderStatCard(
-              'Total Admins',
-              stats.system.totalAdmins || 0,
-              'person-circle',
-              '#9C27B0'
-            )}
-            {renderStatCard(
-              'Attendance Records',
-              stats.system.totalAttendanceRecords || 0,
-              'document-text',
-              '#FF9800'
-            )}
-            {renderStatCard(
-              "Today's Attendance",
-              stats.today?.totalMarked || 0,
-              'calendar',
-              '#4CAF50',
-              handleViewDailyAttendance
-            )}
-          </View>
-        </View>
-      )}
+        {/* Horizontal metrics strip */}
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.metricsStrip}
+        >
+          {!isSuperadmin && (
+            <>
+              {renderStatCard(
+                'Total employees',
+                totalEmployees,
+                'people',
+                '#2196F3',
+                handleViewEmployees
+              )}
+              {renderStatCard(
+                'Present today',
+                todayStats.present || 0,
+                'checkmark-circle',
+                '#4CAF50',
+                handleViewDailyAttendance
+              )}
+              {renderStatCard(
+                'Absent today',
+                todayStats.absent || 0,
+                'close-circle',
+                '#F44336',
+                handleViewDailyAttendance
+              )}
+              {renderStatCard(
+                'Attendance rate',
+                `${todayStats.attendanceRate || 0}%`,
+                'stats-chart',
+                '#FF9800',
+                handleViewDailyAttendance
+              )}
+            </>
+          )}
 
-      {/* Alerts (Superadmin only) */}
-      {isSuperadmin && alerts && alerts.length > 0 && (
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>System Alerts</Text>
-            <View style={styles.alertBadge}>
-              <Text style={styles.alertBadgeText}>{alerts.length}</Text>
+          {isSuperadmin && (
+            <>
+              {renderStatCard(
+                'Total employees',
+                stats.system?.totalEmployees || 0,
+                'people',
+                '#2196F3',
+                handleViewEmployees
+              )}
+              {renderStatCard(
+                'Total admins',
+                stats.system?.totalAdmins || 0,
+                'person-circle',
+                '#9C27B0'
+              )}
+              {renderStatCard(
+                'Attendance records',
+                stats.system?.totalAttendanceRecords || 0,
+                'document-text',
+                '#FF9800'
+              )}
+              {renderStatCard(
+                "Today's marked",
+                stats.today?.totalMarked || 0,
+                'calendar',
+                '#4CAF50',
+                handleViewDailyAttendance
+              )}
+            </>
+          )}
+        </ScrollView>
+
+        {/* Status breakdown grid (admins) */}
+        {!isSuperadmin && (
+          <View style={styles.section}>
+            <View style={styles.sectionHeaderRow}>
+              <Text style={styles.sectionTitle}>Today&apos;s breakdown</Text>
+              <Text style={styles.sectionHint}>Tap cards above to drill down</Text>
+            </View>
+            <View style={styles.statusGrid}>
+              {renderStatusCard(
+                'Present',
+                todayStats.present || 0,
+                totalEmployees,
+                '#4CAF50'
+              )}
+              {renderStatusCard(
+                'Absent',
+                todayStats.absent || 0,
+                totalEmployees,
+                '#F44336'
+              )}
+              {renderStatusCard(
+                'Late',
+                todayStats.late || 0,
+                totalEmployees,
+                '#FF9800'
+              )}
+              {renderStatusCard(
+                'Not marked',
+                todayStats.notMarked || 0,
+                totalEmployees,
+                '#9E9E9E'
+              )}
             </View>
           </View>
-          {alerts.map((alert, index) => renderAlert(alert, index))}
-        </View>
-      )}
+        )}
 
-      {/* Quick Actions */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Quick Actions</Text>
-        <View style={styles.actionButtons}>
-          <TouchableOpacity
-            style={styles.actionButton}
-            onPress={handleViewDailyAttendance}
-          >
-            <Ionicons name="calendar-outline" size={24} color="#2196F3" />
-            <Text style={styles.actionButtonText}>View Daily</Text>
-          </TouchableOpacity>
-          
-          <TouchableOpacity
-            style={styles.actionButton}
-            onPress={handleViewEmployees}
-          >
-            <Ionicons name="people-outline" size={24} color="#2196F3" />
-            <Text style={styles.actionButtonText}>Employees</Text>
-          </TouchableOpacity>
-          
-          {isSuperadmin && (
+        {/* Alerts (superadmin only) */}
+        {isSuperadmin && alerts && alerts.length > 0 && (
+          <View style={styles.section}>
+            <View style={styles.sectionHeaderRow}>
+              <Text style={styles.sectionTitle}>System alerts</Text>
+              <View style={styles.alertBadge}>
+                <Text style={styles.alertBadgeText}>{alerts.length}</Text>
+              </View>
+            </View>
+            {alerts.map((alert, index) => renderAlert(alert, index))}
+          </View>
+        )}
+
+        {/* Quick actions */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Quick actions</Text>
+          <View style={styles.actionRow}>
             <TouchableOpacity
-              style={styles.actionButton}
-              onPress={handleViewAnalytics}
+              style={styles.actionCard}
+              onPress={handleViewDailyAttendance}
+              activeOpacity={0.9}
             >
-              <Ionicons name="analytics-outline" size={24} color="#2196F3" />
-              <Text style={styles.actionButtonText}>Analytics</Text>
+              <View style={styles.actionIconWrap}>
+                <Ionicons name="calendar-outline" size={22} color="#2196F3" />
+              </View>
+              <Text style={styles.actionTitle}>Daily attendance</Text>
+              <Text style={styles.actionSubtitle}>View today&apos;s records</Text>
             </TouchableOpacity>
-          )}
+
+            <TouchableOpacity
+              style={styles.actionCard}
+              onPress={handleViewEmployees}
+              activeOpacity={0.9}
+            >
+              <View style={styles.actionIconWrap}>
+                <Ionicons name="people-outline" size={22} color="#2196F3" />
+              </View>
+              <Text style={styles.actionTitle}>Employees</Text>
+              <Text style={styles.actionSubtitle}>Manage employees</Text>
+            </TouchableOpacity>
+
+            {isSuperadmin && (
+              <TouchableOpacity
+                style={styles.actionCard}
+                onPress={handleViewAnalytics}
+                activeOpacity={0.9}
+              >
+                <View style={styles.actionIconWrap}>
+                  <Ionicons name="analytics-outline" size={22} color="#2196F3" />
+                </View>
+                <Text style={styles.actionTitle}>Analytics</Text>
+                <Text style={styles.actionSubtitle}>Coming soon</Text>
+              </TouchableOpacity>
+            )}
+          </View>
         </View>
-      </View>
-    </ScrollView>
+
+        <View style={{ height: 16 }} />
+      </ScrollView>
+    </View>
   );
 };
 
-// ... (styles remain the same, continuing with styles object)
+const CARD_WIDTH = width * 0.78;
 
 const styles = StyleSheet.create({
+  screen: {
+    flex: 1,
+    backgroundColor: '#F3F5F9',
+  },
+  accentCircle: {
+    position: 'absolute',
+    top: -80,
+    left: -40,
+    width: 220,
+    height: 220,
+    borderRadius: 110,
+    backgroundColor: '#BBDEFB',
+  },
   container: {
     flex: 1,
-    backgroundColor: '#F5F5F5',
   },
+  scrollContent: {
+    paddingTop: 10,
+    paddingBottom: 16,
+  },
+
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#F5F5F5',
+    backgroundColor: '#F3F5F9',
   },
   loadingText: {
     marginTop: 16,
@@ -397,7 +416,7 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#F5F5F5',
+    backgroundColor: '#F3F5F9',
     padding: 32,
   },
   errorText: {
@@ -410,184 +429,257 @@ const styles = StyleSheet.create({
     backgroundColor: '#2196F3',
     paddingHorizontal: 32,
     paddingVertical: 12,
-    borderRadius: 8,
+    borderRadius: 999,
   },
   retryButtonText: {
     color: '#fff',
     fontSize: 16,
     fontWeight: '600',
   },
-  welcomeSection: {
+
+  // Hero
+  welcomeCard: {
+    marginHorizontal: 16,
+    marginBottom: 12,
+    borderRadius: 18,
+    padding: 18,
     backgroundColor: '#2196F3',
-    padding: 24,
-    paddingTop: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 6,
+    elevation: 2,
   },
-  welcomeText: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: '#fff',
+  welcomeLeft: {
+    flex: 1,
+  },
+  welcomeTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#FFFFFF',
     marginBottom: 4,
   },
-  userRole: {
-    fontSize: 16,
+  welcomeSubtitle: {
+    fontSize: 13,
     color: '#E3F2FD',
   },
-  section: {
-    padding: 16,
+  welcomeBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#1976D2',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
   },
-  sectionHeader: {
+  welcomeBadgeText: {
+    marginLeft: 6,
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+
+  // Horizontal metrics
+  metricsStrip: {
+    paddingHorizontal: 16,
+    paddingBottom: 8,
+  },
+  statCard: {
+    width: CARD_WIDTH,
+    borderRadius: 16,
+    padding: 14,
+    marginRight: 12,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.06,
+    shadowRadius: 4,
+    elevation: 1,
+  },
+  statCardLeft: {
+    flex: 1,
+  },
+  statCardLabel: {
+    fontSize: 12,
+    color: '#78909C',
+    marginBottom: 4,
+  },
+  statCardValue: {
+    fontSize: 22,
+    fontWeight: '700',
+    color: '#263238',
+  },
+  statCardIconWrap: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  // Sections
+  section: {
+    paddingHorizontal: 16,
+    paddingTop: 12,
+  },
+  sectionHeaderRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 16,
+    alignItems: 'flex-end',
+    marginBottom: 8,
   },
   sectionTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#37474F',
+  },
+  sectionHint: {
+    fontSize: 11,
+    color: '#90A4AE',
+  },
+
+  // Status grid
+  statusGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    marginHorizontal: -6,
+    marginTop: 6,
+  },
+  statusCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 14,
+    padding: 12,
+    margin: 6,
+    flexBasis: (width - 16 * 2 - 12 * 2) / 2,
+    flexGrow: 1,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 3,
+    elevation: 1,
+  },
+  statusTopRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  statusDotLarge: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    marginRight: 6,
+  },
+  statusLabel: {
+    fontSize: 12,
+    color: '#607D8B',
+    fontWeight: '600',
+  },
+  statusBottomRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    justifyContent: 'space-between',
+  },
+  statusCount: {
     fontSize: 20,
-    fontWeight: 'bold',
-    color: '#333',
+    fontWeight: '700',
+    color: '#263238',
+  },
+  statusPercentage: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
+
+  // Alerts
+  alertCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 14,
+    padding: 12,
+    marginTop: 8,
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.06,
+    shadowRadius: 3,
+    elevation: 1,
+  },
+  alertIconWrap: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 10,
+  },
+  alertContent: {
+    flex: 1,
+  },
+  alertMessage: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#263238',
+  },
+  alertDetails: {
+    fontSize: 12,
+    color: '#757575',
+    marginTop: 4,
   },
   alertBadge: {
     backgroundColor: '#F44336',
-    borderRadius: 12,
+    borderRadius: 999,
     paddingHorizontal: 8,
-    paddingVertical: 4,
+    paddingVertical: 3,
     minWidth: 24,
     alignItems: 'center',
   },
   alertBadgeText: {
-    color: '#fff',
-    fontSize: 12,
-    fontWeight: 'bold',
+    color: '#FFFFFF',
+    fontSize: 11,
+    fontWeight: '700',
   },
-  quickStats: {
-    gap: 12,
-  },
-  statCard: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    padding: 20,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    borderLeftWidth: 4,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  statContent: {
-    flex: 1,
-  },
-  statValue: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: '#333',
-  },
-  statTitle: {
-    fontSize: 14,
-    color: '#666',
-    marginTop: 4,
-  },
-  statIcon: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginLeft: 16,
-  },
-  statusGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    marginTop: 16,
-    marginHorizontal: -6,
-  },
-  statusCard: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    padding: 16,
-    margin: 6,
-    flex: 1,
-    minWidth: (width - 60) / 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  statusIndicator: {
-    width: 32,
-    height: 4,
-    borderRadius: 2,
-    marginBottom: 12,
-  },
-  statusLabel: {
-    fontSize: 12,
-    color: '#666',
-    marginBottom: 4,
-  },
-  statusCount: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#333',
-  },
-  statusPercentage: {
-    fontSize: 12,
-    color: '#999',
-    marginTop: 4,
-  },
-  alertCard: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  alertContent: {
-    flex: 1,
-    marginLeft: 12,
-  },
-  alertMessage: {
-    fontSize: 14,
-    color: '#333',
-    fontWeight: '500',
-  },
-  alertDetails: {
-    fontSize: 12,
-    color: '#666',
-    marginTop: 4,
-  },
-  actionButtons: {
+
+  // Quick actions
+  actionRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     marginHorizontal: -6,
-  },
-  actionButton: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    padding: 20,
-    margin: 6,
-    flex: 1,
-    minWidth: (width - 60) / 2,
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  actionButtonText: {
-    fontSize: 14,
-    color: '#2196F3',
-    fontWeight: '600',
     marginTop: 8,
+  },
+  actionCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 14,
+    padding: 14,
+    margin: 6,
+    flexBasis: (width - 16 * 2 - 6 * 4) / 2,
+    flexGrow: 1,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.06,
+    shadowRadius: 3,
+    elevation: 1,
+  },
+  actionIconWrap: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#E3F2FD',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 8,
+  },
+  actionTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#263238',
+  },
+  actionSubtitle: {
+    fontSize: 11,
+    color: '#78909C',
+    marginTop: 2,
   },
 });
 

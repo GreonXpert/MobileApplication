@@ -1,10 +1,10 @@
-// src/navigation/AppNavigator.js - UPDATED VERSION
+// src/navigation/AppNavigator.js - UPDATED HEADER DESIGN
 import React from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { ActivityIndicator, View, StyleSheet } from 'react-native';
 
-// Import screens
+// Screens
 import LoginScreen from '../screens/LoginScreen';
 import BottomTabNavigator from './BottomTabNavigator';
 import EmployeeCreateScreen from '../screens/EmployeeCreateScreen';
@@ -13,28 +13,38 @@ import AttendanceMarkScreen from '../screens/AttendanceMarkScreen';
 import AttendanceHistoryScreen from '../screens/AttendanceHistoryScreen';
 import DailyAttendanceScreen from '../screens/DailyAttendanceScreen';
 import EmployeeDetailScreen from '../screens/EmployeeDetailScreen';
+import EmployeeListScreen from '../screens/EmployeeListScreen';
 
-// Import auth context
+// Auth context
 import { useAuth } from '../context/AuthContext';
 
 const Stack = createNativeStackNavigator();
 
 /**
- * Auth Stack - Screens accessible before login
+ * Shared stack header styles
+ */
+const defaultStackOptions = {
+  headerStyle: {
+    backgroundColor: '#2196F3',
+  },
+  headerTintColor: '#FFFFFF',
+  headerTitleAlign: 'center',
+  headerTitleStyle: {
+    fontWeight: '700',
+    fontSize: 16,
+  },
+  headerShadowVisible: false,
+  contentStyle: {
+    backgroundColor: '#F3F5F9',
+  },
+};
+
+/**
+ * Auth Stack
  */
 const AuthStack = () => {
   return (
-    <Stack.Navigator
-      screenOptions={{
-        headerStyle: {
-          backgroundColor: '#2196F3',
-        },
-        headerTintColor: '#fff',
-        headerTitleStyle: {
-          fontWeight: 'bold',
-        },
-      }}
-    >
+    <Stack.Navigator screenOptions={defaultStackOptions}>
       <Stack.Screen
         name="Login"
         component={LoginScreen}
@@ -47,73 +57,69 @@ const AuthStack = () => {
 };
 
 /**
- * Main Stack - Screens accessible after login
- * Now uses BottomTabNavigator as the main screen
+ * Main Stack
  */
 const MainStack = () => {
   return (
-    <Stack.Navigator
-      screenOptions={{
-        headerStyle: {
-          backgroundColor: '#2196F3',
-        },
-        headerTintColor: '#fff',
-        headerTitleStyle: {
-          fontWeight: 'bold',
-        },
-      }}
-    >
-      {/* Bottom Tab Navigator as main screen */}
+    <Stack.Navigator screenOptions={defaultStackOptions}>
+      {/* Tabs as root */}
       <Stack.Screen
         name="MainTabs"
         component={BottomTabNavigator}
         options={{
-          headerShown: false, // Tabs have their own headers
+          headerShown: false,
         }}
       />
-      
-      {/* Additional screens that can be accessed from tabs */}
+
+      {/* Modals / pushed screens */}
       <Stack.Screen
         name="EmployeeCreate"
         component={EmployeeCreateScreen}
         options={{
-          title: 'Create Employee',
+          title: 'New employee',
           presentation: 'modal',
+        }}
+      />
+      <Stack.Screen
+        name="EmployeeListScreen"
+        component={EmployeeListScreen}
+        options={{
+          title: 'EmployeeListScreen',
         }}
       />
       <Stack.Screen
         name="EmployeeDetail"
         component={EmployeeDetailScreen}
         options={{
-          title: 'Employee Details',
+          title: 'Employee profile',
         }}
       />
       <Stack.Screen
         name="AttendanceCalendar"
         component={AttendanceCalendarScreen}
         options={{
-          title: 'Select Date',
+          title: 'Select attendance date',
         }}
       />
       <Stack.Screen
         name="AttendanceMark"
         component={AttendanceMarkScreen}
         options={{
-          title: 'Mark Attendance',
+          title: 'Mark attendance',
         }}
       />
       <Stack.Screen
         name="AttendanceHistory"
         component={AttendanceHistoryScreen}
         options={{
-          title: 'Attendance History',
+          title: 'Attendance history',
         }}
       />
       <Stack.Screen
         name="DailyAttendance"
         component={DailyAttendanceScreen}
         options={{
-          title: 'Daily Attendance',
+          title: 'Today\'s attendance',
         }}
       />
     </Stack.Navigator>
@@ -121,12 +127,11 @@ const MainStack = () => {
 };
 
 /**
- * App Navigator - Manages navigation based on auth state
+ * App Navigator
  */
 const AppNavigator = () => {
   const { isAuthenticated, isLoading } = useAuth();
 
-  // Show loading spinner while checking auth status
   if (isLoading) {
     return (
       <View style={styles.loadingContainer}>
@@ -147,7 +152,7 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#fff',
+    backgroundColor: '#F3F5F9',
   },
 });
 

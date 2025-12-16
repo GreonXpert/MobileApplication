@@ -9,34 +9,27 @@ import {
   RefreshControl,
   Alert,
   ActivityIndicator,
+  Platform,
+  TextInput,
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { employeeAPI } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 
-/**
- * Employee List Screen
- * 
- * Displays all employees and allows:
- * - Viewing employee list
- * - Creating new employees
- * - Selecting employee to mark attendance
- * - Pull-to-refresh
- * - Logout
- */
 const EmployeeListScreen = ({ navigation }) => {
-  const { user, logout } = useAuth();
+  const { user } = useAuth();
   const [employees, setEmployees] = useState([]);
+  const [filteredEmployees, setFilteredEmployees] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [searchText, setSearchText] = useState('');
 
-  /**
-   * Fetch employees from backend
-   */
   const fetchEmployees = async () => {
     try {
       const response = await employeeAPI.getAll();
       if (response.success) {
         setEmployees(response.employees);
+        setFilteredEmployees(response.employees);
       }
     } catch (error) {
       console.error('Error fetching employees:', error);
@@ -47,103 +40,78 @@ const EmployeeListScreen = ({ navigation }) => {
     }
   };
 
-  /**
-   * Load employees on screen focus
-   */
   useEffect(() => {
     const unsubscribe = navigation.addListener('focus', () => {
       fetchEmployees();
     });
-
     return unsubscribe;
   }, [navigation]);
 
-  /**
-   * Handle pull-to-refresh
-   */
   const onRefresh = useCallback(() => {
     setRefreshing(true);
     fetchEmployees();
   }, []);
 
-  /**
-   * Navigate to create employee screen
-   */
+  // Search filter by name or ID
+  useEffect(() => {
+    const text = searchText.trim().toLowerCase();
+    if (!text) {
+      setFilteredEmployees(employees);
+      return;
+    }
+
+    const filtered = employees.filter(emp => {
+      const name = emp.name?.toLowerCase() || '';
+      const id = emp.employeeId?.toLowerCase() || '';
+      return name.includes(text) || id.includes(text);
+    });
+
+    setFilteredEmployees(filtered);
+  }, [searchText, employees]);
+
   const handleCreateEmployee = () => {
     navigation.navigate('EmployeeCreate');
   };
 
-  /**
-   * Navigate to attendance calendar for selected employee
-   */
   const handleEmployeePress = (employee) => {
     navigation.navigate('AttendanceCalendar', {
-      employee: employee,
+      employee,
     });
   };
 
-  /**
-   * Handle logout
-   */
-  const handleLogout = () => {
-    Alert.alert(
-      'Logout',
-      'Are you sure you want to logout?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Logout',
-          onPress: async () => {
-            await logout();
-          },
-          style: 'destructive',
-        },
-      ]
-    );
-  };
-
-  /**
-   * Render employee item
-   */
   const renderEmployeeItem = ({ item }) => (
     <TouchableOpacity
       style={styles.employeeCard}
       onPress={() => handleEmployeePress(item)}
+      activeOpacity={0.9}
     >
+      <View style={styles.employeeAvatar}>
+        <Text style={styles.employeeAvatarText}>
+          {item.name?.[0]?.toUpperCase() || '?'}
+        </Text>
+      </View>
       <View style={styles.employeeInfo}>
         <Text style={styles.employeeName}>{item.name}</Text>
-        <Text style={styles.employeeDetail}>ID: {item.employeeId}</Text>
-        <Text style={styles.employeeDetail}>Role: {item.jobRole}</Text>
-        <Text style={styles.employeeDetail}>Dept: {item.department}</Text>
+        <Text style={styles.employeeMeta}>
+          ID: {item.employeeId} • {item.department}
+        </Text>
+        <Text style={styles.employeeMeta}>{item.jobRole}</Text>
       </View>
-      <View style={styles.arrowContainer}>
-        <Text style={styles.arrow}>›</Text>
-      </View>
+      <Ionicons name="chevron-forward" size={20} color="#B0BEC5" />
     </TouchableOpacity>
   );
 
-  /**
-   * Render empty list message
-   */
   const renderEmptyList = () => (
     <View style={styles.emptyContainer}>
+      <Ionicons name="people-outline" size={60} color="#B0BEC5" />
       <Text style={styles.emptyText}>No employees found</Text>
       <Text style={styles.emptySubtext}>
-        Tap the + button to create your first employee
+        {searchText.trim()
+          ? 'Try a different name or ID'
+          : 'Tap “New employee” to create your first record.'}
       </Text>
     </View>
   );
-
-  // Set header buttons
-  React.useLayoutEffect(() => {
-    navigation.setOptions({
-      headerRight: () => (
-        <TouchableOpacity onPress={handleLogout} style={styles.logoutButton}>
-          <Text style={styles.logoutText}>Logout</Text>
-        </TouchableOpacity>
-      ),
-    });
-  }, [navigation]);
 
   if (isLoading) {
     return (
@@ -153,17 +121,56 @@ const EmployeeListScreen = ({ navigation }) => {
     );
   }
 
+  const username = user?.username || 'User';
+  const role = user?.role || 'admin';
+
   return (
-    <View style={styles.container}>
-      {/* User Info Header */}
-      <View style={styles.userInfo}>
-        <Text style={styles.welcomeText}>Welcome, {user?.username}!</Text>
-        <Text style={styles.roleText}>Role: {user?.role}</Text>
+    <View style={styles.screen}>
+      <View style={styles.accentCircle} />
+
+      {/* Top header with inline add button */}
+      <View style={styles.headerCard}>
+        <View style={styles.headerLeft}>
+          <Text style={styles.headerTitle}>Employees</Text>
+          <Text style={styles.headerSubtitle}>
+            Welcome, {username} • Role: {role}
+          </Text>
+        </View>
+        <TouchableOpacity
+          style={styles.addButton}
+          onPress={handleCreateEmployee}
+          activeOpacity={0.9}
+        >
+          <Ionicons name="add" size={18} color="#FFFFFF" />
+          <Text style={styles.addButtonText}>New</Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* Search bar */}
+      <View style={styles.searchContainer}>
+        <View style={styles.searchInputWrapper}>
+          <Ionicons name="search-outline" size={18} color="#90A4AE" />
+          <TextInput
+            style={styles.searchInput}
+            placeholder="Search by name or ID"
+            placeholderTextColor="#B0BEC5"
+            value={searchText}
+            onChangeText={setSearchText}
+            autoCorrect={false}
+            autoCapitalize="none"
+            returnKeyType="search"
+          />
+          {searchText.length > 0 && (
+            <TouchableOpacity onPress={() => setSearchText('')}>
+              <Ionicons name="close-circle" size={18} color="#B0BEC5" />
+            </TouchableOpacity>
+          )}
+        </View>
       </View>
 
       {/* Employee List */}
       <FlatList
-        data={employees}
+        data={filteredEmployees}
         renderItem={renderEmployeeItem}
         keyExtractor={(item) => item._id}
         contentContainerStyle={styles.listContent}
@@ -175,125 +182,172 @@ const EmployeeListScreen = ({ navigation }) => {
           />
         }
         ListEmptyComponent={renderEmptyList}
+        keyboardShouldPersistTaps="handled"
       />
-
-      {/* Floating Action Button for Create Employee */}
-      <TouchableOpacity
-        style={styles.fab}
-        onPress={handleCreateEmployee}
-      >
-        <Text style={styles.fabText}>+</Text>
-      </TouchableOpacity>
     </View>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {
+  screen: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: '#F3F5F9',
+  },
+  accentCircle: {
+    position: 'absolute',
+    top: -80,
+    right: -40,
+    width: 220,
+    height: 220,
+    borderRadius: 110,
+    backgroundColor: '#BBDEFB',
   },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+    backgroundColor: '#F3F5F9',
   },
-  userInfo: {
+
+  // Top header with add button
+  headerCard: {
+    marginHorizontal: 16,
+    marginTop: Platform.OS === 'ios' ? 10 : 8,
+    marginBottom: 6,
+    padding: 14,
+    borderRadius: 16,
     backgroundColor: '#2196F3',
-    padding: 15,
-    paddingBottom: 20,
-  },
-  welcomeText: {
-    color: '#fff',
-    fontSize: 18,
-    fontWeight: 'bold',
-  },
-  roleText: {
-    color: '#fff',
-    fontSize: 14,
-    marginTop: 5,
-  },
-  listContent: {
-    padding: 15,
-    paddingBottom: 80,
-  },
-  employeeCard: {
-    backgroundColor: '#fff',
-    borderRadius: 10,
-    padding: 15,
-    marginBottom: 15,
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    shadowOpacity: 0.15,
+    shadowRadius: 6,
+    elevation: 2,
+  },
+  headerLeft: {
+    flex: 1,
+    paddingRight: 8,
+  },
+  headerTitle: {
+    color: '#FFFFFF',
+    fontSize: 18,
+    fontWeight: '700',
+    marginBottom: 2,
+  },
+  headerSubtitle: {
+    color: '#E3F2FD',
+    fontSize: 12,
+  },
+  addButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#1976D2',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
+  },
+  addButtonText: {
+    marginLeft: 4,
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+
+  // Search
+  searchContainer: {
+    paddingHorizontal: 16,
+    marginBottom: 4,
+  },
+  searchInputWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: Platform.OS === 'ios' ? 8 : 4,
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.06,
+    shadowRadius: 3,
+    elevation: 1,
+  },
+  searchInput: {
+    flex: 1,
+    marginLeft: 6,
+    marginRight: 6,
+    fontSize: 13,
+    color: '#263238',
+    paddingVertical: 4,
+  },
+
+  // List
+  listContent: {
+    paddingHorizontal: 16,
+    paddingTop: 8,
+    paddingBottom: 24,
+  },
+  employeeCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 14,
+    padding: 12,
+    marginBottom: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.06,
+    shadowRadius: 3,
+    elevation: 1,
+  },
+  employeeAvatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#E3F2FD',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 10,
+  },
+  employeeAvatarText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#1976D2',
   },
   employeeInfo: {
     flex: 1,
   },
   employeeName: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#333',
-    marginBottom: 5,
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#263238',
   },
-  employeeDetail: {
-    fontSize: 14,
-    color: '#666',
+  employeeMeta: {
+    fontSize: 12,
+    color: '#607D8B',
     marginTop: 2,
   },
-  arrowContainer: {
-    marginLeft: 10,
-  },
-  arrow: {
-    fontSize: 30,
-    color: '#2196F3',
-  },
+
   emptyContainer: {
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: 100,
+    marginTop: 80,
+    paddingHorizontal: 24,
   },
   emptyText: {
     fontSize: 18,
-    color: '#999',
-    marginBottom: 10,
+    color: '#666',
+    marginTop: 16,
+    fontWeight: '600',
   },
   emptySubtext: {
     fontSize: 14,
-    color: '#bbb',
+    color: '#9E9E9E',
+    marginTop: 6,
     textAlign: 'center',
-  },
-  fab: {
-    position: 'absolute',
-    right: 20,
-    bottom: 20,
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    backgroundColor: '#2196F3',
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 5,
-    elevation: 8,
-  },
-  fabText: {
-    fontSize: 30,
-    color: '#fff',
-    fontWeight: 'bold',
-  },
-  logoutButton: {
-    marginRight: 10,
-  },
-  logoutText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
   },
 });
 

@@ -116,7 +116,22 @@ export const AuthProvider = ({ children }) => {
       };
     }
   };
-
+// When setting user after login, ensure all fields exist:
+const loginUser = async (token, userData) => {
+  await saveToken(token);
+  
+  // ✅ Ensure user object has all required fields
+  const normalizedUser = {
+    id: userData.id || userData._id,
+    username: userData.username || '',
+    role: userData.role || 'admin', // Important: always have a role
+    fullName: userData.fullName || '',
+    email: userData.email || '',
+  };
+  
+  await saveUserData(normalizedUser);
+  setUser(normalizedUser);
+};
   const logout = async () => {
     try {
       console.log('👋 Logging out...');

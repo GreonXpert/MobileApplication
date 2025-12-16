@@ -12,24 +12,9 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { employeeAPI, handleAPIError } from '../services/api';
 
-/**
- * Employee Create Screen
- * 
- * Form to create a new employee with:
- * - Name
- * - Employee ID
- * - Job Role
- * - Department
- * - Fingerprint Template (currently manual input)
- * - Base Location (latitude, longitude)
- * 
- * ⚠️ SDK INTEGRATION POINT:
- * In production, the fingerprintTemplate field should be populated
- * by capturing a fingerprint using MFS100/Precision PB100 SDK,
- * not through manual text input.
- */
 const EmployeeCreateScreen = ({ navigation }) => {
   const [formData, setFormData] = useState({
     name: '',
@@ -42,9 +27,6 @@ const EmployeeCreateScreen = ({ navigation }) => {
   });
   const [isLoading, setIsLoading] = useState(false);
 
-  /**
-   * Update form field
-   */
   const updateField = (field, value) => {
     setFormData(prev => ({
       ...prev,
@@ -52,9 +34,6 @@ const EmployeeCreateScreen = ({ navigation }) => {
     }));
   };
 
-  /**
-   * Validate form data
-   */
   const validateForm = () => {
     if (!formData.name.trim()) {
       Alert.alert('Validation Error', 'Please enter employee name');
@@ -81,7 +60,6 @@ const EmployeeCreateScreen = ({ navigation }) => {
       return false;
     }
 
-    // Validate latitude and longitude are numbers
     const lat = parseFloat(formData.latitude);
     const lng = parseFloat(formData.longitude);
     if (isNaN(lat) || isNaN(lng)) {
@@ -100,16 +78,12 @@ const EmployeeCreateScreen = ({ navigation }) => {
     return true;
   };
 
-  /**
-   * Handle form submission
-   */
   const handleSubmit = async () => {
     if (!validateForm()) return;
 
     try {
       setIsLoading(true);
 
-      // Prepare employee data
       const employeeData = {
         name: formData.name.trim(),
         employeeId: formData.employeeId.trim(),
@@ -122,20 +96,15 @@ const EmployeeCreateScreen = ({ navigation }) => {
         },
       };
 
-      // Call API to create employee
       const response = await employeeAPI.create(employeeData);
 
       if (response.success) {
-        Alert.alert(
-          'Success',
-          'Employee created successfully!',
-          [
-            {
-              text: 'OK',
-              onPress: () => navigation.goBack(),
-            },
-          ]
-        );
+        Alert.alert('Success', 'Employee created successfully!', [
+          {
+            text: 'OK',
+            onPress: () => navigation.goBack(),
+          },
+        ]);
       }
     } catch (error) {
       const errorMessage = handleAPIError(error);
@@ -145,140 +114,215 @@ const EmployeeCreateScreen = ({ navigation }) => {
     }
   };
 
-  /**
-   * Simulate fingerprint capture (placeholder for SDK integration)
-   */
   const handleFingerprintCapture = () => {
     Alert.alert(
       'SDK Integration Required',
       'In production, this button would:\n\n' +
-      '1. Initialize MFS100/Precision PB100 SDK\n' +
-      '2. Capture fingerprint from scanner\n' +
-      '3. Get template string from SDK\n' +
-      '4. Populate the template field\n\n' +
-      'For now, you can manually enter a test template string.',
+        '1. Initialize MFS100/Precision PB100 SDK\n' +
+        '2. Capture fingerprint from scanner\n' +
+        '3. Get template string from SDK\n' +
+        '4. Populate the template field\n\n' +
+        'For now, a dummy template will be used.',
       [{ text: 'OK' }]
     );
-    
-    // For testing, set a dummy template
-    // In production, this would be: const template = await FingerprintSDK.capture();
+
     const dummyTemplate = `DUMMY_TEMPLATE_${Date.now()}`;
     updateField('fingerprintTemplate', dummyTemplate);
   };
 
+  const initials =
+    formData.name.trim() !== ''
+      ? formData.name
+          .split(' ')
+          .map(p => p[0])
+          .join('')
+          .toUpperCase()
+      : 'EMP';
+
   return (
     <KeyboardAvoidingView
-      style={styles.container}
+      style={styles.screen}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
+      <View style={styles.accentCircle} />
       <ScrollView
-        style={styles.scrollView}
+        style={styles.container}
         contentContainerStyle={styles.scrollContent}
+        keyboardShouldPersistTaps="handled"
       >
-        {/* Info Banner */}
-        <View style={styles.infoBanner}>
-          <Text style={styles.infoText}>
-            📝 Create a new employee profile
-          </Text>
+        {/* Header / context */}
+        <View style={styles.headerCard}>
+          <View style={styles.headerLeft}>
+            <Text style={styles.headerTitle}>New employee</Text>
+            <Text style={styles.headerSubtitle}>
+              Fill in basic info, fingerprint and base location.
+            </Text>
+          </View>
+          <View style={styles.headerBadge}>
+            <Ionicons name="person-add-outline" size={18} color="#FFFFFF" />
+          </View>
         </View>
 
-        {/* Form Fields */}
-        <View style={styles.form}>
-          {/* Name */}
-          <View style={styles.fieldContainer}>
-            <Text style={styles.label}>Name *</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="e.g., John Doe"
-              value={formData.name}
-              onChangeText={(text) => updateField('name', text)}
-              editable={!isLoading}
-            />
+        {/* Persona preview */}
+        <View style={styles.personCard}>
+          <View style={styles.avatar}>
+            <Text style={styles.avatarText}>{initials}</Text>
           </View>
-
-          {/* Employee ID */}
-          <View style={styles.fieldContainer}>
-            <Text style={styles.label}>Employee ID *</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="e.g., EMP001"
-              value={formData.employeeId}
-              onChangeText={(text) => updateField('employeeId', text)}
-              editable={!isLoading}
-              autoCapitalize="characters"
-            />
-          </View>
-
-          {/* Job Role */}
-          <View style={styles.fieldContainer}>
-            <Text style={styles.label}>Job Role *</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="e.g., Software Engineer"
-              value={formData.jobRole}
-              onChangeText={(text) => updateField('jobRole', text)}
-              editable={!isLoading}
-            />
-          </View>
-
-          {/* Department */}
-          <View style={styles.fieldContainer}>
-            <Text style={styles.label}>Department *</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="e.g., IT"
-              value={formData.department}
-              onChangeText={(text) => updateField('department', text)}
-              editable={!isLoading}
-            />
-          </View>
-
-          {/* Fingerprint Template */}
-          <View style={styles.fieldContainer}>
-            <Text style={styles.label}>Fingerprint Template *</Text>
-            <Text style={styles.sdkNote}>
-              ⚠️ In production, use MFS100/Precision PB100 SDK to capture
+          <View style={styles.personInfo}>
+            <Text style={styles.personNamePreview}>
+              {formData.name.trim() || 'Employee name'}
             </Text>
-            <TouchableOpacity
-              style={styles.captureButton}
-              onPress={handleFingerprintCapture}
-              disabled={isLoading}
-            >
-              <Text style={styles.captureButtonText}>
-                📱 Capture Fingerprint (Demo)
-              </Text>
-            </TouchableOpacity>
-            <TextInput
-              style={[styles.input, styles.textArea]}
-              placeholder="Fingerprint template will appear here"
-              value={formData.fingerprintTemplate}
-              onChangeText={(text) => updateField('fingerprintTemplate', text)}
-              editable={!isLoading}
-              multiline
-              numberOfLines={3}
-            />
+            <Text style={styles.personMetaPreview}>
+              {formData.employeeId.trim() || 'Employee ID'} •{' '}
+              {formData.department.trim() || 'Department'}
+            </Text>
+            <Text style={styles.personMetaPreview}>
+              {formData.jobRole.trim() || 'Job role'}
+            </Text>
+          </View>
+        </View>
+
+        {/* Section: basic info */}
+        <View style={styles.sectionCard}>
+          <Text style={styles.sectionTitle}>Basic information</Text>
+
+          <View style={styles.field}>
+            <Text style={styles.label}>Name *</Text>
+            <View style={styles.inputWrapper}>
+              <Ionicons name="person-outline" size={18} color="#9E9E9E" />
+              <TextInput
+                style={styles.input}
+                placeholder="John Doe"
+                placeholderTextColor="#B0BEC5"
+                value={formData.name}
+                onChangeText={(text) => updateField('name', text)}
+                editable={!isLoading}
+              />
+            </View>
           </View>
 
-          {/* Location */}
-          <View style={styles.fieldContainer}>
-            <Text style={styles.label}>Base Location *</Text>
-            <View style={styles.locationRow}>
-              <View style={styles.locationField}>
-                <Text style={styles.subLabel}>Latitude</Text>
+          <View style={styles.dualRow}>
+            <View style={[styles.field, { flex: 1, marginRight: 8 }]}>
+              <Text style={styles.label}>Employee ID *</Text>
+              <View style={styles.inputWrapper}>
+                <Ionicons name="id-card-outline" size={18} color="#9E9E9E" />
                 <TextInput
                   style={styles.input}
-                  placeholder="e.g., 10.0261"
+                  placeholder="EMP001"
+                  placeholderTextColor="#B0BEC5"
+                  value={formData.employeeId}
+                  onChangeText={(text) => updateField('employeeId', text)}
+                  editable={!isLoading}
+                  autoCapitalize="characters"
+                />
+              </View>
+            </View>
+
+            <View style={[styles.field, { flex: 1, marginLeft: 8 }]}>
+              <Text style={styles.label}>Department *</Text>
+              <View style={styles.inputWrapper}>
+                <Ionicons name="business-outline" size={18} color="#9E9E9E" />
+                <TextInput
+                  style={styles.input}
+                  placeholder="IT, HR, Finance..."
+                  placeholderTextColor="#B0BEC5"
+                  value={formData.department}
+                  onChangeText={(text) => updateField('department', text)}
+                  editable={!isLoading}
+                />
+              </View>
+            </View>
+          </View>
+
+          <View style={styles.field}>
+            <Text style={styles.label}>Job role *</Text>
+            <View style={styles.inputWrapper}>
+              <Ionicons name="briefcase-outline" size={18} color="#9E9E9E" />
+              <TextInput
+                style={styles.input}
+                placeholder="Software Engineer, Manager..."
+                placeholderTextColor="#B0BEC5"
+                value={formData.jobRole}
+                onChangeText={(text) => updateField('jobRole', text)}
+                editable={!isLoading}
+              />
+            </View>
+          </View>
+        </View>
+
+        {/* Section: fingerprint */}
+        <View style={styles.sectionCard}>
+          <View style={styles.sectionHeaderRow}>
+            <Text style={styles.sectionTitle}>Fingerprint template *</Text>
+            <View style={styles.sectionTag}>
+              <Ionicons name="shield-checkmark-outline" size={14} color="#1976D2" />
+              <Text style={styles.sectionTagText}>SDK integration</Text>
+            </View>
+          </View>
+
+          <Text style={styles.sdkNote}>
+            In production, this will be captured via MFS100 / Precision PB100 SDK
+            instead of manual entry.
+          </Text>
+
+          <TouchableOpacity
+            style={styles.captureButton}
+            onPress={handleFingerprintCapture}
+            disabled={isLoading}
+            activeOpacity={0.9}
+          >
+            <Ionicons name="finger-print-outline" size={20} color="#FFFFFF" />
+            <Text style={styles.captureButtonText}>Capture fingerprint (demo)</Text>
+          </TouchableOpacity>
+
+          <View style={styles.field}>
+            <View style={styles.inputWrapperMultiline}>
+              <TextInput
+                style={[styles.input, styles.textArea]}
+                placeholder="Fingerprint template will appear here"
+                placeholderTextColor="#B0BEC5"
+                value={formData.fingerprintTemplate}
+                onChangeText={(text) => updateField('fingerprintTemplate', text)}
+                editable={!isLoading}
+                multiline
+                numberOfLines={3}
+              />
+            </View>
+          </View>
+        </View>
+
+        {/* Section: base location */}
+        <View style={styles.sectionCard}>
+          <Text style={styles.sectionTitle}>Base location *</Text>
+          <Text style={styles.sectionHint}>
+            Used as default location when marking attendance.
+          </Text>
+
+          <View style={styles.dualRow}>
+            <View style={[styles.field, { flex: 1, marginRight: 8 }]}>
+              <Text style={styles.label}>Latitude</Text>
+              <View style={styles.inputWrapper}>
+                <Ionicons name="navigate-outline" size={18} color="#9E9E9E" />
+                <TextInput
+                  style={styles.input}
+                  placeholder="10.0261"
+                  placeholderTextColor="#B0BEC5"
                   value={formData.latitude}
                   onChangeText={(text) => updateField('latitude', text)}
                   keyboardType="numeric"
                   editable={!isLoading}
                 />
               </View>
-              <View style={styles.locationField}>
-                <Text style={styles.subLabel}>Longitude</Text>
+            </View>
+
+            <View style={[styles.field, { flex: 1, marginLeft: 8 }]}>
+              <Text style={styles.label}>Longitude</Text>
+              <View style={styles.inputWrapper}>
+                <Ionicons name="locate-outline" size={18} color="#9E9E9E" />
                 <TextInput
                   style={styles.input}
-                  placeholder="e.g., 76.3125"
+                  placeholder="76.3125"
+                  placeholderTextColor="#B0BEC5"
                   value={formData.longitude}
                   onChangeText={(text) => updateField('longitude', text)}
                   keyboardType="numeric"
@@ -287,124 +331,282 @@ const EmployeeCreateScreen = ({ navigation }) => {
               </View>
             </View>
           </View>
-
-          {/* Submit Button */}
-          <TouchableOpacity
-            style={[styles.submitButton, isLoading && styles.submitButtonDisabled]}
-            onPress={handleSubmit}
-            disabled={isLoading}
-          >
-            {isLoading ? (
-              <ActivityIndicator color="#fff" />
-            ) : (
-              <Text style={styles.submitButtonText}>Create Employee</Text>
-            )}
-          </TouchableOpacity>
         </View>
+
+        {/* Info banner */}
+        <View style={styles.infoBanner}>
+          <Ionicons name="information-circle-outline" size={20} color="#1976D2" />
+          <Text style={styles.infoText}>
+            You can edit employee details later from the employee profile screen.
+          </Text>
+        </View>
+
+        {/* Submit button */}
+        <TouchableOpacity
+          style={[styles.submitButton, isLoading && styles.submitButtonDisabled]}
+          onPress={handleSubmit}
+          disabled={isLoading}
+          activeOpacity={0.95}
+        >
+          {isLoading ? (
+            <ActivityIndicator color="#FFFFFF" />
+          ) : (
+            <View style={styles.submitContent}>
+              <Ionicons name="checkmark-circle-outline" size={20} color="#FFFFFF" />
+              <Text style={styles.submitButtonText}>Create employee</Text>
+            </View>
+          )}
+        </TouchableOpacity>
       </ScrollView>
     </KeyboardAvoidingView>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {
+  screen: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: '#F3F5F9',
   },
-  scrollView: {
+  accentCircle: {
+    position: 'absolute',
+    top: -80,
+    right: -40,
+    width: 220,
+    height: 220,
+    borderRadius: 110,
+    backgroundColor: '#BBDEFB',
+  },
+  container: {
     flex: 1,
   },
   scrollContent: {
-    padding: 15,
-    paddingBottom: 30,
+    padding: 16,
+    paddingBottom: 24,
   },
-  infoBanner: {
-    backgroundColor: '#E3F2FD',
-    padding: 15,
-    borderRadius: 8,
-    marginBottom: 20,
-  },
-  infoText: {
-    fontSize: 14,
-    color: '#1976D2',
-  },
-  form: {
-    backgroundColor: '#fff',
-    borderRadius: 10,
-    padding: 20,
+
+  headerCard: {
+    backgroundColor: '#2196F3',
+    borderRadius: 16,
+    padding: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 14,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    shadowOpacity: 0.15,
+    shadowRadius: 6,
+    elevation: 2,
   },
-  fieldContainer: {
-    marginBottom: 20,
+  headerLeft: {
+    flex: 1,
   },
-  label: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#333',
+  headerTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#FFFFFF',
+    marginBottom: 4,
+  },
+  headerSubtitle: {
+    fontSize: 13,
+    color: '#E3F2FD',
+  },
+  headerBadge: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#1976D2',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  personCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 14,
+    marginBottom: 14,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.06,
+    shadowRadius: 3,
+    elevation: 1,
+  },
+  avatar: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: '#BBDEFB',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  avatarText: {
+    color: '#1976D2',
+    fontSize: 18,
+    fontWeight: '700',
+  },
+  personInfo: {
+    flex: 1,
+  },
+  personNamePreview: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#263238',
+  },
+  personMetaPreview: {
+    fontSize: 12,
+    color: '#607D8B',
+    marginTop: 2,
+  },
+
+  sectionCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 14,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.06,
+    shadowRadius: 3,
+    elevation: 1,
+  },
+  sectionHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
     marginBottom: 8,
   },
-  subLabel: {
+  sectionTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#37474F',
+    marginBottom: 6,
+  },
+  sectionHint: {
     fontSize: 12,
+    color: '#78909C',
+    marginBottom: 4,
+  },
+  sectionTag: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 999,
+    backgroundColor: '#E3F2FD',
+  },
+  sectionTagText: {
+    marginLeft: 4,
+    color: '#1976D2',
+    fontSize: 11,
     fontWeight: '600',
-    color: '#666',
-    marginBottom: 5,
+  },
+
+  field: {
+    marginBottom: 12,
+  },
+  dualRow: {
+    flexDirection: 'row',
+    marginBottom: 4,
+  },
+  label: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#37474F',
+    marginBottom: 6,
+  },
+  inputWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FAFAFA',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
+    paddingHorizontal: 10,
+  },
+  inputWrapperMultiline: {
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
+    backgroundColor: '#FAFAFA',
   },
   input: {
-    borderWidth: 1,
-    borderColor: '#ddd',
-    borderRadius: 8,
-    padding: 12,
-    fontSize: 16,
-    backgroundColor: '#f9f9f9',
+    flex: 1,
+    paddingVertical: 10,
+    marginLeft: 8,
+    fontSize: 14,
+    color: '#263238',
   },
   textArea: {
-    height: 80,
+    minHeight: 80,
     textAlignVertical: 'top',
   },
+
   sdkNote: {
     fontSize: 12,
     color: '#FF9800',
     marginBottom: 10,
-    fontStyle: 'italic',
   },
   captureButton: {
-    backgroundColor: '#4CAF50',
-    padding: 12,
-    borderRadius: 8,
+    flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 10,
+    backgroundColor: '#4CAF50',
+    borderRadius: 999,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    marginBottom: 12,
   },
   captureButtonText: {
-    color: '#fff',
-    fontSize: 14,
+    color: '#FFFFFF',
+    fontSize: 13,
     fontWeight: '600',
+    marginLeft: 8,
   },
-  locationRow: {
+
+  infoBanner: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    backgroundColor: '#E3F2FD',
+    borderRadius: 14,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: '#BBDEFB',
+    marginTop: 4,
+    marginBottom: 14,
   },
-  locationField: {
+  infoText: {
     flex: 1,
-    marginRight: 10,
+    marginLeft: 8,
+    fontSize: 12,
+    color: '#1976D2',
+    lineHeight: 18,
   },
+
   submitButton: {
     backgroundColor: '#2196F3',
-    padding: 16,
-    borderRadius: 8,
+    borderRadius: 999,
+    paddingVertical: 14,
     alignItems: 'center',
-    marginTop: 10,
+    marginBottom: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    elevation: 5,
   },
   submitButtonDisabled: {
-    backgroundColor: '#999',
+    backgroundColor: '#B0BEC5',
+  },
+  submitContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   submitButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: 'bold',
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '700',
+    marginLeft: 8,
   },
 });
 

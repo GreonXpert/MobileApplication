@@ -6,32 +6,18 @@ import {
   StyleSheet,
   TouchableOpacity,
   Alert,
+  Platform,
 } from 'react-native';
 import { Calendar } from 'react-native-calendars';
 
-/**
- * Attendance Calendar Screen
- * 
- * Shows a calendar to select a date for marking attendance
- * Features:
- * - Calendar UI
- * - Date selection
- * - Navigate to mark attendance screen with selected date
- */
 const AttendanceCalendarScreen = ({ route, navigation }) => {
   const { employee } = route.params;
   const [selectedDate, setSelectedDate] = useState('');
 
-  /**
-   * Handle date selection
-   */
   const handleDayPress = (day) => {
     setSelectedDate(day.dateString);
   };
 
-  /**
-   * Navigate to mark attendance screen
-   */
   const handleContinue = () => {
     if (!selectedDate) {
       Alert.alert('Error', 'Please select a date');
@@ -39,81 +25,125 @@ const AttendanceCalendarScreen = ({ route, navigation }) => {
     }
 
     navigation.navigate('AttendanceMark', {
-      employee: employee,
-      selectedDate: selectedDate,
+      employee,
+      selectedDate,
     });
   };
 
-  /**
-   * Format marked dates for calendar
-   */
   const markedDates = {
     [selectedDate]: {
       selected: true,
       selectedColor: '#2196F3',
+      selectedTextColor: '#fff',
+      dotColor: '#FFC107',
+      marked: true,
     },
   };
 
+  const formattedSelected =
+    selectedDate &&
+    new Date(selectedDate).toLocaleDateString('en-US', {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+    });
+
   return (
     <View style={styles.container}>
-      {/* Employee Info */}
-      <View style={styles.employeeInfo}>
-        <Text style={styles.employeeName}>{employee.name}</Text>
-        <Text style={styles.employeeDetail}>ID: {employee.employeeId}</Text>
-        <Text style={styles.employeeDetail}>Dept: {employee.department}</Text>
+      {/* Top gradient-like header */}
+      <View style={styles.headerCard}>
+        <View style={styles.headerLeft}>
+          <Text style={styles.headerTitle}>Mark Attendance</Text>
+          <Text style={styles.headerSubtitle}>Pick a date for this employee</Text>
+        </View>
+        <View style={styles.headerBadge}>
+          <Text style={styles.headerBadgeText}>
+            {selectedDate ? 'Ready' : 'Pending'}
+          </Text>
+        </View>
+      </View>
+
+      {/* Employee Info card */}
+      <View style={styles.employeeCard}>
+        <View style={styles.employeeAvatar}>
+          <Text style={styles.employeeAvatarText}>
+            {employee?.name?.[0]?.toUpperCase() || '?'}
+          </Text>
+        </View>
+        <View style={styles.employeeInfo}>
+          <Text style={styles.employeeName}>{employee.name}</Text>
+          <Text style={styles.employeeDetail}>ID: {employee.employeeId}</Text>
+          <Text style={styles.employeeDetail}>Dept: {employee.department}</Text>
+        </View>
       </View>
 
       {/* Instruction */}
       <View style={styles.instructionContainer}>
+        <Text style={styles.instructionTitle}>Select a date</Text>
         <Text style={styles.instructionText}>
-          Select a date to mark attendance
+          You can only mark attendance for today or past dates.
         </Text>
       </View>
 
-      {/* Calendar */}
+      {/* Calendar card */}
       <View style={styles.calendarContainer}>
         <Calendar
           onDayPress={handleDayPress}
           markedDates={markedDates}
-          theme={{
-            selectedDayBackgroundColor: '#2196F3',
-            todayTextColor: '#2196F3',
-            arrowColor: '#2196F3',
-            monthTextColor: '#333',
-            textMonthFontWeight: 'bold',
-            textMonthFontSize: 16,
-          }}
-          // Don't allow selecting future dates
           maxDate={new Date().toISOString().split('T')[0]}
+          enableSwipeMonths
+          theme={{
+            backgroundColor: '#FFFFFF',
+            calendarBackground: '#FFFFFF',
+            textSectionTitleColor: '#90A4AE',
+            selectedDayBackgroundColor: '#2196F3',
+            selectedDayTextColor: '#FFFFFF',
+            todayTextColor: '#2196F3',
+            dayTextColor: '#263238',
+            textDisabledColor: '#B0BEC5',
+            arrowColor: '#2196F3',
+            monthTextColor: '#263238',
+            textMonthFontWeight: '700',
+            textMonthFontSize: 18,
+            textDayFontSize: 14,
+            textDayHeaderFontSize: 12,
+            'stylesheet.calendar.header': {
+              week: {
+                marginTop: 8,
+                flexDirection: 'row',
+                justifyContent: 'space-between',
+              },
+            },
+          }}
+          style={styles.calendar}
         />
       </View>
 
-      {/* Selected Date Display */}
+      {/* Selected Date pill */}
       {selectedDate && (
         <View style={styles.selectedDateContainer}>
-          <Text style={styles.selectedDateLabel}>Selected Date:</Text>
-          <Text style={styles.selectedDateText}>
-            {new Date(selectedDate).toLocaleDateString('en-US', {
-              weekday: 'long',
-              year: 'numeric',
-              month: 'long',
-              day: 'numeric',
-            })}
-          </Text>
+          <Text style={styles.selectedDateLabel}>Selected date</Text>
+          <Text style={styles.selectedDateText}>{formattedSelected}</Text>
         </View>
       )}
 
-      {/* Continue Button */}
-      <TouchableOpacity
-        style={[
-          styles.continueButton,
-          !selectedDate && styles.continueButtonDisabled,
-        ]}
-        onPress={handleContinue}
-        disabled={!selectedDate}
-      >
-        <Text style={styles.continueButtonText}>Continue</Text>
-      </TouchableOpacity>
+      {/* Bottom sticky button */}
+      <View style={styles.footer}>
+        <TouchableOpacity
+          style={[
+            styles.continueButton,
+            !selectedDate && styles.continueButtonDisabled,
+          ]}
+          onPress={handleContinue}
+          disabled={!selectedDate}
+          activeOpacity={0.8}
+        >
+          <Text style={styles.continueButtonText}>
+            {selectedDate ? 'Continue to Mark Attendance' : 'Select a date to continue'}
+          </Text>
+        </TouchableOpacity>
+      </View>
     </View>
   );
 };
@@ -121,84 +151,158 @@ const AttendanceCalendarScreen = ({ route, navigation }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: '#F3F5F9',
+    paddingTop: Platform.OS === 'ios' ? 8 : 0,
+  },
+  headerCard: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginHorizontal: 16,
+    marginTop: 12,
+    padding: 16,
+    borderRadius: 16,
+    backgroundColor: '#2196F3',
+    overflow: 'hidden',
+  },
+  headerLeft: {
+    flex: 1,
+  },
+  headerTitle: {
+    color: '#FFFFFF',
+    fontSize: 18,
+    fontWeight: '700',
+    marginBottom: 4,
+  },
+  headerSubtitle: {
+    color: '#E3F2FD',
+    fontSize: 13,
+  },
+  headerBadge: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+    backgroundColor: '#1976D2',
+  },
+  headerBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  employeeCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginHorizontal: 16,
+    marginTop: 12,
+    padding: 14,
+    borderRadius: 14,
+    backgroundColor: '#FFFFFF',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.08,
+    shadowRadius: 3,
+    elevation: 2,
+  },
+  employeeAvatar: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#BBDEFB',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  employeeAvatarText: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#1976D2',
   },
   employeeInfo: {
-    backgroundColor: '#2196F3',
-    padding: 15,
+    flex: 1,
   },
   employeeName: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#fff',
-    marginBottom: 5,
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#263238',
   },
   employeeDetail: {
-    fontSize: 14,
-    color: '#fff',
+    fontSize: 13,
+    color: '#607D8B',
     marginTop: 2,
   },
   instructionContainer: {
-    backgroundColor: '#E3F2FD',
-    padding: 15,
+    marginHorizontal: 16,
+    marginTop: 14,
+  },
+  instructionTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#37474F',
+    marginBottom: 4,
   },
   instructionText: {
-    fontSize: 14,
-    color: '#1976D2',
-    textAlign: 'center',
+    fontSize: 13,
+    color: '#78909C',
   },
   calendarContainer: {
-    backgroundColor: '#fff',
-    margin: 15,
-    borderRadius: 10,
-    padding: 10,
+    backgroundColor: '#FFFFFF',
+    marginHorizontal: 16,
+    marginTop: 12,
+    borderRadius: 16,
+    paddingVertical: 6,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
+    shadowOpacity: 0.08,
     shadowRadius: 4,
     elevation: 3,
+  },
+  calendar: {
+    borderRadius: 16,
   },
   selectedDateContainer: {
-    backgroundColor: '#fff',
-    marginHorizontal: 15,
-    padding: 15,
-    borderRadius: 10,
-    marginBottom: 15,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    marginHorizontal: 16,
+    marginTop: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderRadius: 999,
+    backgroundColor: '#E3F2FD',
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   selectedDateLabel: {
-    fontSize: 14,
-    color: '#666',
-    marginBottom: 5,
+    fontSize: 13,
+    color: '#1976D2',
+    marginRight: 8,
   },
   selectedDateText: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#333',
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#0D47A1',
+  },
+  footer: {
+    paddingHorizontal: 16,
+    paddingBottom: Platform.OS === 'ios' ? 24 : 16,
+    paddingTop: 8,
   },
   continueButton: {
     backgroundColor: '#2196F3',
-    margin: 15,
-    padding: 16,
-    borderRadius: 10,
+    paddingVertical: 14,
+    borderRadius: 999,
     alignItems: 'center',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.16,
+    shadowRadius: 6,
     elevation: 4,
   },
   continueButtonDisabled: {
-    backgroundColor: '#999',
+    backgroundColor: '#B0BEC5',
+    shadowOpacity: 0.05,
   },
   continueButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: 'bold',
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '700',
   },
 });
 

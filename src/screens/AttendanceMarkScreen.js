@@ -9,24 +9,14 @@ import {
   ScrollView,
   Alert,
   ActivityIndicator,
+  Platform,
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { attendanceAPI, handleAPIError } from '../services/api';
 
-/**
- * Attendance Mark Screen
- * 
- * Form to mark attendance for an employee with:
- * - Employee information (from previous screen)
- * - Selected date (from previous screen)
- * - Attendance status (PRESENT/ABSENT/LATE/HALF_DAY)
- * - Location (latitude, longitude)
- * 
- * Backend will automatically retrieve the employee's fingerprint
- * template and include it in the attendance record.
- */
 const AttendanceMarkScreen = ({ route, navigation }) => {
   const { employee, selectedDate } = route.params;
-  
+
   const [status, setStatus] = useState('PRESENT');
   const [location, setLocation] = useState({
     latitude: '',
@@ -34,17 +24,13 @@ const AttendanceMarkScreen = ({ route, navigation }) => {
   });
   const [isLoading, setIsLoading] = useState(false);
 
-  // Status options
   const statusOptions = [
-    { value: 'PRESENT', label: 'Present', color: '#4CAF50' },
-    { value: 'ABSENT', label: 'Absent', color: '#F44336' },
-    { value: 'LATE', label: 'Late', color: '#FF9800' },
-    { value: 'HALF_DAY', label: 'Half Day', color: '#2196F3' },
+    { value: 'PRESENT', label: 'Present', color: '#4CAF50', icon: 'checkmark-circle' },
+    { value: 'ABSENT', label: 'Absent', color: '#F44336', icon: 'close-circle' },
+    { value: 'LATE', label: 'Late', color: '#FF9800', icon: 'time' },
+    { value: 'HALF_DAY', label: 'Half Day', color: '#2196F3', icon: 'hourglass' },
   ];
 
-  /**
-   * Update location field
-   */
   const updateLocation = (field, value) => {
     setLocation(prev => ({
       ...prev,
@@ -52,9 +38,6 @@ const AttendanceMarkScreen = ({ route, navigation }) => {
     }));
   };
 
-  /**
-   * Use employee's base location
-   */
   const useBaseLocation = () => {
     if (employee.baseLocation) {
       setLocation({
@@ -67,9 +50,6 @@ const AttendanceMarkScreen = ({ route, navigation }) => {
     }
   };
 
-  /**
-   * Validate form
-   */
   const validateForm = () => {
     if (!status) {
       Alert.alert('Validation Error', 'Please select attendance status');
@@ -98,32 +78,24 @@ const AttendanceMarkScreen = ({ route, navigation }) => {
     return true;
   };
 
-  /**
-   * Handle attendance submission
-   */
   const handleSubmit = async () => {
     if (!validateForm()) return;
 
     try {
       setIsLoading(true);
 
-      // Prepare attendance data
       const attendanceData = {
         employeeId: employee.employeeId,
         date: new Date(selectedDate).toISOString(),
-        status: status,
+        status,
         location: {
           latitude: parseFloat(location.latitude),
           longitude: parseFloat(location.longitude),
         },
       };
 
-      // Call API to mark attendance
-      // Backend will automatically:
-      // 1. Retrieve employee's fingerprint template
-      // 2. Create attendance record with all details
-      // 3. Make it available to Superadmin
-      const response = await attendanceAPI.markAttendance(attendanceData);
+      const response = await attendanceAPI.mark(attendanceData);
+
 
       if (response.success) {
         Alert.alert(
@@ -132,10 +104,10 @@ const AttendanceMarkScreen = ({ route, navigation }) => {
           [
             {
               text: 'OK',
-              onPress: () => {
-                // Navigate back to employee list
-                navigation.navigate('EmployeeList');
-              },
+             onPress: () => {
+  // go back to the root stack screen (MainTabs)
+  navigation.popToTop();
+}
             },
           ]
         );
@@ -148,9 +120,6 @@ const AttendanceMarkScreen = ({ route, navigation }) => {
     }
   };
 
-  /**
-   * Format date for display
-   */
   const formatDate = (dateString) => {
     return new Date(dateString).toLocaleDateString('en-US', {
       weekday: 'long',
@@ -160,265 +129,510 @@ const AttendanceMarkScreen = ({ route, navigation }) => {
     });
   };
 
+  const formattedDate = formatDate(selectedDate);
+
   return (
-    <ScrollView style={styles.container}>
-      {/* Employee Info */}
-      <View style={styles.infoCard}>
-        <Text style={styles.infoLabel}>Employee:</Text>
-        <Text style={styles.infoValue}>{employee.name}</Text>
-        <Text style={styles.infoDetail}>ID: {employee.employeeId}</Text>
-        <Text style={styles.infoDetail}>Role: {employee.jobRole}</Text>
-        <Text style={styles.infoDetail}>Dept: {employee.department}</Text>
-      </View>
+    <View style={styles.screen}>
+      {/* soft top accent */}
+      <View style={styles.headerAccent} />
 
-      {/* Date Info */}
-      <View style={styles.infoCard}>
-        <Text style={styles.infoLabel}>Date:</Text>
-        <Text style={styles.infoValue}>{formatDate(selectedDate)}</Text>
-      </View>
-
-      {/* Attendance Status Selection */}
-      <View style={styles.formCard}>
-        <Text style={styles.sectionTitle}>Attendance Status *</Text>
-        <View style={styles.statusGrid}>
-          {statusOptions.map((option) => (
-            <TouchableOpacity
-              key={option.value}
-              style={[
-                styles.statusButton,
-                status === option.value && {
-                  backgroundColor: option.color,
-                  borderColor: option.color,
-                },
-              ]}
-              onPress={() => setStatus(option.value)}
-              disabled={isLoading}
-            >
-              <Text
-                style={[
-                  styles.statusButtonText,
-                  status === option.value && styles.statusButtonTextActive,
-                ]}
-              >
-                {option.label}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-      </View>
-
-      {/* Location Input */}
-      <View style={styles.formCard}>
-        <Text style={styles.sectionTitle}>Location *</Text>
-        <TouchableOpacity
-          style={styles.baseLocationButton}
-          onPress={useBaseLocation}
-          disabled={isLoading}
-        >
-          <Text style={styles.baseLocationButtonText}>
-            📍 Use Employee Base Location
-          </Text>
-        </TouchableOpacity>
-        
-        <View style={styles.locationRow}>
-          <View style={styles.locationField}>
-            <Text style={styles.label}>Latitude</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="e.g., 10.0261"
-              value={location.latitude}
-              onChangeText={(text) => updateLocation('latitude', text)}
-              keyboardType="numeric"
-              editable={!isLoading}
-            />
-          </View>
-          <View style={styles.locationField}>
-            <Text style={styles.label}>Longitude</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="e.g., 76.3125"
-              value={location.longitude}
-              onChangeText={(text) => updateLocation('longitude', text)}
-              keyboardType="numeric"
-              editable={!isLoading}
-            />
-          </View>
-        </View>
-        
-        <Text style={styles.locationNote}>
-          💡 In production, use device GPS or location services
-        </Text>
-      </View>
-
-      {/* Information Banner */}
-      <View style={styles.infoBanner}>
-        <Text style={styles.infoBannerText}>
-          ℹ️ Backend will automatically retrieve and include the employee's
-          fingerprint template in the attendance record. This data will be
-          available to Superadmin in the attendance feed.
-        </Text>
-      </View>
-
-      {/* Submit Button */}
-      <TouchableOpacity
-        style={[styles.submitButton, isLoading && styles.submitButtonDisabled]}
-        onPress={handleSubmit}
-        disabled={isLoading}
+      <ScrollView
+        style={styles.container}
+        contentContainerStyle={styles.scrollContent}
+        keyboardShouldPersistTaps="handled"
       >
-        {isLoading ? (
-          <ActivityIndicator color="#fff" />
-        ) : (
-          <Text style={styles.submitButtonText}>Mark Attendance</Text>
-        )}
-      </TouchableOpacity>
-    </ScrollView>
+        {/* Top card: context */}
+        <View style={styles.headerCard}>
+          <View style={styles.headerLeft}>
+            <Text style={styles.headerTitle}>Mark Attendance</Text>
+            <Text style={styles.headerSubtitle}>Review details and confirm</Text>
+          </View>
+          <View style={styles.headerChip}>
+            <Ionicons name="today-outline" size={18} color="#fff" />
+            <Text style={styles.headerChipText}>Session</Text>
+          </View>
+        </View>
+
+        {/* Employee + date card */}
+        <View style={styles.infoCard}>
+          <View style={styles.employeeRow}>
+            <View style={styles.employeeAvatar}>
+              <Text style={styles.employeeAvatarText}>
+                {employee?.name?.[0]?.toUpperCase() || '?'}
+              </Text>
+            </View>
+            <View style={styles.employeeInfo}>
+              <Text style={styles.employeeName}>{employee.name}</Text>
+              <Text style={styles.employeeMeta}>
+                ID: {employee.employeeId} • {employee.jobRole}
+              </Text>
+              <Text style={styles.employeeMeta}>{employee.department}</Text>
+            </View>
+          </View>
+
+          <View style={styles.divider} />
+
+          <View style={styles.dateRow}>
+            <Ionicons name="calendar-outline" size={18} color="#1976D2" />
+            <View style={{ marginLeft: 8 }}>
+              <Text style={styles.dateLabel}>For date</Text>
+              <Text style={styles.dateValue}>{formattedDate}</Text>
+            </View>
+          </View>
+        </View>
+
+        {/* Status card */}
+        <View style={styles.formCard}>
+          <Text style={styles.sectionTitle}>Attendance status *</Text>
+          <View style={styles.statusGrid}>
+            {statusOptions.map((option) => {
+              const selected = status === option.value;
+              return (
+                <TouchableOpacity
+                  key={option.value}
+                  style={[
+                    styles.statusChip,
+                    selected && {
+                      backgroundColor: `${option.color}15`,
+                      borderColor: option.color,
+                    },
+                  ]}
+                  onPress={() => setStatus(option.value)}
+                  disabled={isLoading}
+                  activeOpacity={0.85}
+                >
+                  <View
+                    style={[
+                      styles.statusIconWrapper,
+                      selected && { backgroundColor: option.color },
+                    ]}
+                  >
+                    <Ionicons
+                      name={option.icon}
+                      size={18}
+                      color={selected ? '#fff' : option.color}
+                    />
+                  </View>
+                  <View style={styles.statusTextWrapper}>
+                    <Text
+                      style={[
+                        styles.statusLabel,
+                        selected && { color: option.color },
+                      ]}
+                    >
+                      {option.label}
+                    </Text>
+                    {selected && (
+                      <Text style={styles.statusSubLabel}>Currently selected</Text>
+                    )}
+                  </View>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        </View>
+
+        {/* Location card */}
+        <View style={styles.formCard}>
+          <View style={styles.locationHeaderRow}>
+            <Text style={styles.sectionTitle}>Location *</Text>
+            <View style={styles.locationTag}>
+              <Ionicons name="shield-checkmark-outline" size={14} color="#1976D2" />
+              <Text style={styles.locationTagText}>Geo-verified</Text>
+            </View>
+          </View>
+
+          <TouchableOpacity
+            style={styles.baseLocationButton}
+            onPress={useBaseLocation}
+            disabled={isLoading}
+            activeOpacity={0.9}
+          >
+            <Ionicons name="navigate-outline" size={18} color="#1976D2" />
+            <Text style={styles.baseLocationButtonText}>
+              Use employee base location
+            </Text>
+          </TouchableOpacity>
+
+          <View style={styles.locationRow}>
+            <View style={styles.locationField}>
+              <Text style={styles.label}>Latitude</Text>
+              <View style={styles.inputWrapper}>
+                <Ionicons name="compass-outline" size={16} color="#9E9E9E" />
+                <TextInput
+                  style={styles.input}
+                  placeholder="10.0261"
+                  placeholderTextColor="#B0BEC5"
+                  value={location.latitude}
+                  onChangeText={(text) => updateLocation('latitude', text)}
+                  keyboardType="numeric"
+                  editable={!isLoading}
+                />
+              </View>
+            </View>
+            <View style={styles.locationField}>
+              <Text style={styles.label}>Longitude</Text>
+              <View style={styles.inputWrapper}>
+                <Ionicons name="locate-outline" size={16} color="#9E9E9E" />
+                <TextInput
+                  style={styles.input}
+                  placeholder="76.3125"
+                  placeholderTextColor="#B0BEC5"
+                  value={location.longitude}
+                  onChangeText={(text) => updateLocation('longitude', text)}
+                  keyboardType="numeric"
+                  editable={!isLoading}
+                />
+              </View>
+            </View>
+          </View>
+
+          <Text style={styles.locationNote}>
+            In production, these values should come from device GPS or a secure
+            location service.
+          </Text>
+        </View>
+
+        {/* Info banner */}
+        <View style={styles.infoBanner}>
+          <Ionicons name="finger-print-outline" size={20} color="#2E7D32" />
+          <Text style={styles.infoBannerText}>
+            Backend automatically attaches the employee&apos;s fingerprint template
+            to this attendance record and exposes it to Superadmin.
+          </Text>
+        </View>
+
+        <View style={{ height: 90 }} />
+      </ScrollView>
+
+      {/* Floating submit button */}
+      <View style={styles.floatingFooter}>
+        <TouchableOpacity
+          style={[
+            styles.submitButton,
+            isLoading && styles.submitButtonDisabled,
+          ]}
+          onPress={handleSubmit}
+          disabled={isLoading}
+          activeOpacity={0.95}
+        >
+          {isLoading ? (
+            <ActivityIndicator color="#fff" />
+          ) : (
+            <View style={styles.submitContent}>
+              <Ionicons name="checkmark-done" size={20} color="#fff" />
+              <Text style={styles.submitButtonText}>Confirm & mark attendance</Text>
+            </View>
+          )}
+        </TouchableOpacity>
+      </View>
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
+  screen: {
+    flex: 1,
+    backgroundColor: '#F3F5F9',
+  },
+  headerAccent: {
+    position: 'absolute',
+    top: -80,
+    left: -40,
+    width: 220,
+    height: 220,
+    borderRadius: 110,
+    backgroundColor: '#BBDEFB',
+  },
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
-    padding: 15,
   },
-  infoCard: {
-    backgroundColor: '#fff',
-    borderRadius: 10,
-    padding: 15,
-    marginBottom: 15,
+  scrollContent: {
+    paddingTop: Platform.OS === 'ios' ? 12 : 8,
+    paddingHorizontal: 16,
+    paddingBottom: 16,
+  },
+
+  headerCard: {
+    backgroundColor: '#2196F3',
+    borderRadius: 16,
+    padding: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 16,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
+    shadowOpacity: 0.15,
+    shadowRadius: 6,
     elevation: 3,
   },
-  infoLabel: {
-    fontSize: 14,
-    color: '#666',
-    marginBottom: 5,
+  headerLeft: {
+    flex: 1,
   },
-  infoValue: {
+  headerTitle: {
+    color: '#FFFFFF',
     fontSize: 18,
-    fontWeight: 'bold',
-    color: '#333',
-    marginBottom: 5,
+    fontWeight: '700',
+    marginBottom: 4,
   },
-  infoDetail: {
-    fontSize: 14,
-    color: '#666',
+  headerSubtitle: {
+    color: '#E3F2FD',
+    fontSize: 13,
+  },
+  headerChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
+    backgroundColor: '#1976D2',
+  },
+  headerChipText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '600',
+    marginLeft: 6,
+  },
+
+  infoCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  employeeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  employeeAvatar: {
+    width: 46,
+    height: 46,
+    borderRadius: 23,
+    backgroundColor: '#BBDEFB',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  employeeAvatarText: {
+    color: '#1976D2',
+    fontSize: 20,
+    fontWeight: '700',
+  },
+  employeeInfo: {
+    flex: 1,
+  },
+  employeeName: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#263238',
+  },
+  employeeMeta: {
+    fontSize: 13,
+    color: '#607D8B',
     marginTop: 2,
   },
+  divider: {
+    height: 1,
+    backgroundColor: '#E0E0E0',
+    marginVertical: 12,
+  },
+  dateRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  dateLabel: {
+    fontSize: 12,
+    color: '#78909C',
+  },
+  dateValue: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#263238',
+    marginTop: 2,
+  },
+
   formCard: {
-    backgroundColor: '#fff',
-    borderRadius: 10,
-    padding: 15,
-    marginBottom: 15,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 16,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
+    shadowOpacity: 0.06,
     shadowRadius: 4,
-    elevation: 3,
+    elevation: 2,
   },
   sectionTitle: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#333',
-    marginBottom: 15,
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#37474F',
+    marginBottom: 14,
   },
+
   statusGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'space-between',
+    flexDirection: 'column',
+    gap: 10,
   },
-  statusButton: {
-    width: '48%',
-    padding: 15,
-    borderRadius: 8,
-    borderWidth: 2,
-    borderColor: '#ddd',
-    backgroundColor: '#f9f9f9',
+  statusChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderRadius: 14,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
+    backgroundColor: '#FAFAFA',
+  },
+  statusIconWrapper: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#FFFFFF',
+  },
+  statusTextWrapper: {
+    marginLeft: 10,
+  },
+  statusLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#37474F',
+  },
+  statusSubLabel: {
+    fontSize: 11,
+    color: '#9E9E9E',
+    marginTop: 2,
+  },
+
+  locationHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 10,
   },
-  statusButtonText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#666',
-  },
-  statusButtonTextActive: {
-    color: '#fff',
-    fontWeight: 'bold',
-  },
-  baseLocationButton: {
-    backgroundColor: '#E3F2FD',
-    padding: 12,
-    borderRadius: 8,
+  locationTag: {
+    flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 15,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 999,
+    backgroundColor: '#E3F2FD',
+  },
+  locationTagText: {
+    marginLeft: 4,
+    color: '#1976D2',
+    fontSize: 11,
+    fontWeight: '600',
+  },
+
+  baseLocationButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#E3F2FD',
+    borderRadius: 999,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    marginBottom: 14,
   },
   baseLocationButtonText: {
     color: '#1976D2',
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '600',
+    marginLeft: 8,
   },
+
   locationRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
+    gap: 10,
   },
   locationField: {
     flex: 1,
-    marginRight: 10,
   },
   label: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '600',
-    color: '#333',
-    marginBottom: 8,
+    color: '#37474F',
+    marginBottom: 6,
+  },
+  inputWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FAFAFA',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
+    paddingHorizontal: 10,
   },
   input: {
-    borderWidth: 1,
-    borderColor: '#ddd',
-    borderRadius: 8,
-    padding: 12,
-    fontSize: 16,
-    backgroundColor: '#f9f9f9',
+    flex: 1,
+    paddingVertical: 10,
+    marginLeft: 6,
+    color: '#263238',
+    fontSize: 14,
   },
   locationNote: {
-    fontSize: 12,
-    color: '#999',
-    marginTop: 10,
-    fontStyle: 'italic',
+    fontSize: 11,
+    color: '#9E9E9E',
+    marginTop: 8,
   },
+
   infoBanner: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
     backgroundColor: '#E8F5E9',
-    padding: 15,
-    borderRadius: 8,
-    marginBottom: 15,
+    borderRadius: 14,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: '#C8E6C9',
+    marginBottom: 16,
   },
   infoBannerText: {
-    fontSize: 13,
-    color: '#388E3C',
-    lineHeight: 20,
+    flex: 1,
+    marginLeft: 8,
+    color: '#2E7D32',
+    fontSize: 12,
+    lineHeight: 18,
+  },
+
+  floatingFooter: {
+    position: 'absolute',
+    left: 16,
+    right: 16,
+    bottom: Platform.OS === 'ios' ? 20 : 16,
   },
   submitButton: {
     backgroundColor: '#4CAF50',
-    padding: 16,
-    borderRadius: 10,
+    borderRadius: 999,
+    paddingVertical: 14,
     alignItems: 'center',
-    marginBottom: 30,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-    elevation: 4,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    elevation: 5,
   },
   submitButtonDisabled: {
-    backgroundColor: '#999',
+    backgroundColor: '#B0BEC5',
+  },
+  submitContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   submitButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: 'bold',
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '700',
+    marginLeft: 8,
   },
 });
 

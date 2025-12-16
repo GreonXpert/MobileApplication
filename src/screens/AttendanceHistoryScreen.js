@@ -9,38 +9,25 @@ import {
   RefreshControl,
   Alert,
   ActivityIndicator,
+  Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { dashboardAPI } from '../services/api';
 
-/**
- * Attendance History Screen
- * 
- * Shows complete attendance history for a specific employee:
- * - Employee information
- * - Attendance statistics
- * - Chronological attendance records
- * - Filter by date range
- * - Status indicators
- */
 const AttendanceHistoryScreen = ({ route, navigation }) => {
   const { employee } = route.params;
-  
+
   const [historyData, setHistoryData] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [limit, setLimit] = useState(30);
 
-  /**
-   * Fetch attendance history
-   */
   const fetchHistory = async () => {
     try {
       const response = await dashboardAPI.getEmployeeHistory(
         employee.employeeId,
         { limit }
       );
-      
       if (response.success) {
         setHistoryData(response);
       }
@@ -53,31 +40,19 @@ const AttendanceHistoryScreen = ({ route, navigation }) => {
     }
   };
 
-  /**
-   * Load data on mount
-   */
   useEffect(() => {
     fetchHistory();
   }, [limit]);
 
-  /**
-   * Handle pull-to-refresh
-   */
   const onRefresh = useCallback(() => {
     setRefreshing(true);
     fetchHistory();
   }, [limit]);
 
-  /**
-   * Load more records
-   */
   const handleLoadMore = () => {
     setLimit(prev => prev + 30);
   };
 
-  /**
-   * Get status color
-   */
   const getStatusColor = (status) => {
     switch (status) {
       case 'PRESENT':
@@ -93,9 +68,6 @@ const AttendanceHistoryScreen = ({ route, navigation }) => {
     }
   };
 
-  /**
-   * Get status icon
-   */
   const getStatusIcon = (status) => {
     switch (status) {
       case 'PRESENT':
@@ -111,17 +83,28 @@ const AttendanceHistoryScreen = ({ route, navigation }) => {
     }
   };
 
-  /**
-   * Render employee header
-   */
   const renderEmployeeHeader = () => {
     if (!historyData) return null;
 
     const { employee: empData, statistics } = historyData;
 
     return (
-      <View style={styles.headerContainer}>
-        {/* Employee Info */}
+      <View>
+        {/* Gradient-like header */}
+        <View style={styles.topHeader}>
+          <View style={styles.topHeaderLeft}>
+            <Text style={styles.topHeaderTitle}>Attendance History</Text>
+            <Text style={styles.topHeaderSubtitle}>
+              Overview of past {statistics.totalRecords} records
+            </Text>
+          </View>
+          <View style={styles.topHeaderBadge}>
+            <Ionicons name="calendar" size={18} color="#fff" />
+            <Text style={styles.topHeaderBadgeText}>History</Text>
+          </View>
+        </View>
+
+        {/* Employee Card */}
         <View style={styles.employeeCard}>
           <View style={styles.employeeAvatar}>
             <Text style={styles.employeeAvatarText}>
@@ -137,53 +120,56 @@ const AttendanceHistoryScreen = ({ route, navigation }) => {
           </View>
         </View>
 
-        {/* Statistics */}
-        <View style={styles.statsContainer}>
-          <Text style={styles.statsTitle}>Attendance Statistics</Text>
-          
-          <View style={styles.statsGrid}>
-            <View style={styles.statItem}>
-              <Text style={styles.statValue}>{statistics.totalRecords}</Text>
-              <Text style={styles.statLabel}>Total Records</Text>
-            </View>
-            <View style={styles.statItem}>
-              <Text style={[styles.statValue, { color: '#4CAF50' }]}>
+        {/* Stats chips */}
+        <View style={styles.statsRow}>
+          <View style={[styles.statChip, { backgroundColor: '#E8F5E9' }]}>
+            <Ionicons name="checkmark-circle-outline" size={18} color="#4CAF50" />
+            <View style={styles.statChipTextWrapper}>
+              <Text style={styles.statChipLabel}>Present</Text>
+              <Text style={[styles.statChipValue, { color: '#4CAF50' }]}>
                 {statistics.present}
               </Text>
-              <Text style={styles.statLabel}>Present</Text>
             </View>
-            <View style={styles.statItem}>
-              <Text style={[styles.statValue, { color: '#F44336' }]}>
+          </View>
+          <View style={[styles.statChip, { backgroundColor: '#FFEBEE' }]}>
+            <Ionicons name="close-circle-outline" size={18} color="#F44336" />
+            <View style={styles.statChipTextWrapper}>
+              <Text style={styles.statChipLabel}>Absent</Text>
+              <Text style={[styles.statChipValue, { color: '#F44336' }]}>
                 {statistics.absent}
               </Text>
-              <Text style={styles.statLabel}>Absent</Text>
-            </View>
-            <View style={styles.statItem}>
-              <Text style={[styles.statValue, { color: '#FF9800' }]}>
-                {statistics.late}
-              </Text>
-              <Text style={styles.statLabel}>Late</Text>
             </View>
           </View>
+        </View>
 
-          <View style={styles.attendanceRateContainer}>
-            <Text style={styles.attendanceRateLabel}>Attendance Rate</Text>
-            <Text style={styles.attendanceRateValue}>
-              {statistics.attendanceRate}
+        <View style={styles.statsRow}>
+          <View style={[styles.statChipSmall, { backgroundColor: '#FFF3E0' }]}>
+            <Ionicons name="time-outline" size={16} color="#FB8C00" />
+            <Text style={[styles.statChipSmallText, { color: '#FB8C00' }]}>
+              Late: {statistics.late}
             </Text>
           </View>
+          <View style={[styles.statChipSmall, { backgroundColor: '#E3F2FD' }]}>
+            <Ionicons name="stats-chart-outline" size={16} color="#1976D2" />
+            <Text style={[styles.statChipSmallText, { color: '#1976D2' }]}>
+              Rate: {statistics.attendanceRate}
+            </Text>
+          </View>
+        </View>
+
+        {/* Section title */}
+        <View style={styles.timelineHeader}>
+          <Text style={styles.timelineTitle}>Timeline</Text>
+          <Text style={styles.timelineSubtitle}>Most recent first</Text>
         </View>
       </View>
     );
   };
 
-  /**
-   * Render attendance record item
-   */
   const renderHistoryItem = ({ item, index }) => {
     const statusColor = getStatusColor(item.status);
     const statusIcon = getStatusIcon(item.status);
-    
+
     const date = new Date(item.date);
     const dateString = date.toLocaleDateString('en-US', {
       weekday: 'short',
@@ -198,24 +184,40 @@ const AttendanceHistoryScreen = ({ route, navigation }) => {
     });
 
     return (
-      <View style={styles.historyCard}>
-        {/* Left indicator */}
-        <View style={styles.timeline}>
-          <View style={[styles.timelineDot, { backgroundColor: statusColor }]} />
+      <View style={styles.historyRow}>
+        {/* Timeline column */}
+        <View style={styles.timelineColumn}>
+          <View
+            style={[
+              styles.timelineDot,
+              { borderColor: statusColor, backgroundColor: '#fff' },
+            ]}
+          >
+            <View
+              style={[
+                styles.timelineDotInner,
+                { backgroundColor: statusColor },
+              ]}
+            />
+          </View>
           {index < (historyData?.history.length || 0) - 1 && (
             <View style={styles.timelineLine} />
           )}
         </View>
 
-        {/* Content */}
-        <View style={styles.historyContent}>
+        {/* Card content */}
+        <View style={styles.historyCard}>
           <View style={styles.historyHeader}>
             <View style={styles.dateContainer}>
-              <Ionicons name="calendar-outline" size={16} color="#666" />
+              <Ionicons name="calendar-outline" size={16} color="#78909C" />
               <Text style={styles.dateText}>{dateString}</Text>
             </View>
-            
-            <View style={[styles.statusBadge, { backgroundColor: `${statusColor}15` }]}>
+            <View
+              style={[
+                styles.statusBadge,
+                { backgroundColor: `${statusColor}12` },
+              ]}
+            >
               <Ionicons name={statusIcon} size={16} color={statusColor} />
               <Text style={[styles.statusText, { color: statusColor }]}>
                 {item.status.replace('_', ' ')}
@@ -225,22 +227,23 @@ const AttendanceHistoryScreen = ({ route, navigation }) => {
 
           <View style={styles.historyDetails}>
             <View style={styles.detailRow}>
-              <Ionicons name="time-outline" size={14} color="#666" />
+              <Ionicons name="time-outline" size={14} color="#90A4AE" />
               <Text style={styles.detailText}>Marked at {markedAtTime}</Text>
             </View>
-            
+
             {item.markedBy && (
               <View style={styles.detailRow}>
-                <Ionicons name="person-outline" size={14} color="#666" />
+                <Ionicons name="person-outline" size={14} color="#90A4AE" />
                 <Text style={styles.detailText}>By {item.markedBy}</Text>
               </View>
             )}
-            
+
             {item.location && (
               <View style={styles.detailRow}>
-                <Ionicons name="location-outline" size={14} color="#666" />
+                <Ionicons name="location-outline" size={14} color="#90A4AE" />
                 <Text style={styles.detailText}>
-                  {item.location.latitude.toFixed(4)}, {item.location.longitude.toFixed(4)}
+                  {item.location.latitude.toFixed(4)},{' '}
+                  {item.location.longitude.toFixed(4)}
                 </Text>
               </View>
             )}
@@ -250,9 +253,6 @@ const AttendanceHistoryScreen = ({ route, navigation }) => {
     );
   };
 
-  /**
-   * Render footer with load more button
-   */
   const renderFooter = () => {
     if (!historyData || historyData.history.length < limit) {
       return (
@@ -263,25 +263,19 @@ const AttendanceHistoryScreen = ({ route, navigation }) => {
     }
 
     return (
-      <TouchableOpacity
-        style={styles.loadMoreButton}
-        onPress={handleLoadMore}
-      >
-        <Text style={styles.loadMoreText}>Load More</Text>
+      <TouchableOpacity style={styles.loadMoreButton} onPress={handleLoadMore}>
+        <Text style={styles.loadMoreText}>Load more records</Text>
         <Ionicons name="chevron-down" size={20} color="#2196F3" />
       </TouchableOpacity>
     );
   };
 
-  /**
-   * Render empty state
-   */
   const renderEmptyList = () => (
     <View style={styles.emptyContainer}>
-      <Ionicons name="document-text-outline" size={64} color="#999" />
+      <Ionicons name="document-text-outline" size={64} color="#B0BEC5" />
       <Text style={styles.emptyText}>No attendance records</Text>
       <Text style={styles.emptySubtext}>
-        This employee has no attendance history yet
+        This employee has no attendance history yet.
       </Text>
     </View>
   );
@@ -328,13 +322,18 @@ const AttendanceHistoryScreen = ({ route, navigation }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F5F5F5',
+    backgroundColor: '#F3F5F9',
   },
+  listContainer: {
+    paddingBottom: 16,
+  },
+
+  // Loading / error
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#F5F5F5',
+    backgroundColor: '#F3F5F9',
   },
   loadingText: {
     marginTop: 12,
@@ -345,7 +344,7 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#F5F5F5',
+    backgroundColor: '#F3F5F9',
     padding: 20,
   },
   errorText: {
@@ -358,153 +357,201 @@ const styles = StyleSheet.create({
     backgroundColor: '#2196F3',
     paddingHorizontal: 32,
     paddingVertical: 12,
-    borderRadius: 8,
+    borderRadius: 999,
   },
   retryButtonText: {
     color: '#fff',
     fontSize: 16,
     fontWeight: '600',
   },
-  listContainer: {
-    flexGrow: 1,
+
+  // Top header + employee
+  topHeader: {
+    marginHorizontal: 16,
+    marginTop: 12,
+    padding: 14,
+    borderRadius: 16,
+    backgroundColor: '#2196F3',
+    flexDirection: 'row',
+    alignItems: 'center',
   },
-  headerContainer: {
-    padding: 16,
+  topHeaderLeft: {
+    flex: 1,
   },
+  topHeaderTitle: {
+    color: '#FFFFFF',
+    fontSize: 18,
+    fontWeight: '700',
+    marginBottom: 4,
+  },
+  topHeaderSubtitle: {
+    color: '#E3F2FD',
+    fontSize: 13,
+  },
+  topHeaderBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#1976D2',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
+  },
+  topHeaderBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '600',
+    marginLeft: 6,
+  },
+
   employeeCard: {
     backgroundColor: '#fff',
-    borderRadius: 12,
+    borderRadius: 16,
     padding: 16,
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 16,
+    marginHorizontal: 16,
+    marginTop: 12,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.08,
+    shadowRadius: 3,
+    elevation: 2,
   },
   employeeAvatar: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    backgroundColor: '#2196F3',
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: '#BBDEFB',
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 16,
+    marginRight: 14,
   },
   employeeAvatarText: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#fff',
+    fontSize: 22,
+    fontWeight: '700',
+    color: '#1976D2',
   },
   employeeInfo: {
     flex: 1,
   },
   employeeName: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#333',
-    marginBottom: 4,
+    fontSize: 17,
+    fontWeight: '700',
+    color: '#263238',
   },
   employeeDetail: {
-    fontSize: 14,
-    color: '#666',
+    fontSize: 13,
+    color: '#607D8B',
     marginTop: 2,
   },
-  statsContainer: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  statsTitle: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#333',
-    marginBottom: 16,
-  },
-  statsGrid: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    marginBottom: 16,
-  },
-  statItem: {
-    alignItems: 'center',
-  },
-  statValue: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#333',
-  },
-  statLabel: {
-    fontSize: 12,
-    color: '#666',
-    marginTop: 4,
-  },
-  attendanceRateContainer: {
-    backgroundColor: '#E3F2FD',
-    borderRadius: 8,
-    padding: 12,
+
+  // Stats
+  statsRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
+    marginHorizontal: 16,
+    marginTop: 10,
+  },
+  statChip: {
+    flex: 1,
+    flexDirection: 'row',
     alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 14,
+    marginHorizontal: 4,
   },
-  attendanceRateLabel: {
-    fontSize: 14,
+  statChipTextWrapper: {
+    marginLeft: 8,
+  },
+  statChipLabel: {
+    fontSize: 12,
+    color: '#546E7A',
+  },
+  statChipValue: {
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  statChipSmall: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 999,
+    marginHorizontal: 4,
+    flex: 1,
+  },
+  statChipSmallText: {
+    fontSize: 13,
     fontWeight: '600',
-    color: '#1976D2',
+    marginLeft: 6,
   },
-  attendanceRateValue: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#1976D2',
+
+  // Timeline header
+  timelineHeader: {
+    marginHorizontal: 16,
+    marginTop: 16,
+    marginBottom: 8,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-end',
   },
-  historyCard: {
+  timelineTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#37474F',
+  },
+  timelineSubtitle: {
+    fontSize: 12,
+    color: '#90A4AE',
+  },
+
+  // Timeline + cards
+  historyRow: {
     flexDirection: 'row',
     paddingHorizontal: 16,
-    paddingVertical: 8,
   },
-  timeline: {
-    width: 30,
+  timelineColumn: {
+    width: 26,
     alignItems: 'center',
   },
   timelineDot: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
+    width: 16,
+    height: 16,
+    borderRadius: 8,
     borderWidth: 2,
-    borderColor: '#fff',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 4,
+  },
+  timelineDotInner: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
   },
   timelineLine: {
     width: 2,
     flex: 1,
     backgroundColor: '#E0E0E0',
-    marginTop: 4,
+    marginTop: 2,
   },
-  historyContent: {
+  historyCard: {
     flex: 1,
-    backgroundColor: '#fff',
-    borderRadius: 12,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 14,
     padding: 12,
-    marginLeft: 12,
+    marginLeft: 10,
     marginBottom: 12,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.05,
     shadowRadius: 2,
-    elevation: 2,
+    elevation: 1,
   },
   historyHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 8,
   },
   dateContainer: {
     flexDirection: 'row',
@@ -513,7 +560,7 @@ const styles = StyleSheet.create({
   dateText: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#333',
+    color: '#37474F',
     marginLeft: 6,
   },
   statusBadge: {
@@ -521,7 +568,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 10,
     paddingVertical: 4,
-    borderRadius: 12,
+    borderRadius: 999,
   },
   statusText: {
     fontSize: 12,
@@ -538,26 +585,28 @@ const styles = StyleSheet.create({
   },
   detailText: {
     fontSize: 12,
-    color: '#666',
+    color: '#607D8B',
     marginLeft: 6,
   },
+
+  // Footer / Empty
   footerContainer: {
-    padding: 20,
+    paddingVertical: 20,
     alignItems: 'center',
   },
   footerText: {
     fontSize: 14,
-    color: '#999',
+    color: '#9E9E9E',
   },
   loadMoreButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    padding: 16,
+    paddingVertical: 12,
     marginHorizontal: 16,
     marginBottom: 16,
-    backgroundColor: '#fff',
-    borderRadius: 8,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 999,
     borderWidth: 1,
     borderColor: '#2196F3',
   },
@@ -584,6 +633,7 @@ const styles = StyleSheet.create({
     color: '#999',
     marginTop: 8,
     textAlign: 'center',
+    paddingHorizontal: 24,
   },
 });
 

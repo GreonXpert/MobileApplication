@@ -8,28 +8,17 @@ import {
   TouchableOpacity,
   Alert,
   ActivityIndicator,
+  Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { employeeAPI } from '../services/api';
 
-/**
- * Employee Detail Screen
- * 
- * Shows complete employee information:
- * - Employee details
- * - Base location
- * - Department and role
- * - Quick actions
- */
 const EmployeeDetailScreen = ({ route, navigation }) => {
   const { employeeId } = route.params;
-  
+
   const [employee, setEmployee] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  /**
-   * Fetch employee details
-   */
   const fetchEmployeeDetails = async () => {
     try {
       const response = await employeeAPI.getById(employeeId);
@@ -44,32 +33,22 @@ const EmployeeDetailScreen = ({ route, navigation }) => {
     }
   };
 
-  /**
-   * Load data on mount
-   */
   useEffect(() => {
     fetchEmployeeDetails();
   }, [employeeId]);
 
-  /**
-   * Navigate to attendance calendar
-   */
   const handleMarkAttendance = () => {
+    if (!employee) return;
     navigation.navigate('AttendanceCalendar', { employee });
   };
 
-  /**
-   * Navigate to attendance history
-   */
   const handleViewHistory = () => {
+    if (!employee) return;
     navigation.navigate('AttendanceHistory', { employee });
   };
 
-  /**
-   * Render info row
-   */
   const renderInfoRow = (icon, label, value, iconColor = '#2196F3') => (
-    <View style={styles.infoRow}>
+    <View style={styles.infoRow} key={label}>
       <View style={[styles.infoIcon, { backgroundColor: `${iconColor}15` }]}>
         <Ionicons name={icon} size={20} color={iconColor} />
       </View>
@@ -98,134 +77,190 @@ const EmployeeDetailScreen = ({ route, navigation }) => {
           style={styles.backButton}
           onPress={() => navigation.goBack()}
         >
-          <Text style={styles.backButtonText}>Go Back</Text>
+          <Text style={styles.backButtonText}>Go back</Text>
         </TouchableOpacity>
       </View>
     );
   }
 
+  const joinedDate = new Date(employee.createdAt).toLocaleDateString('en-US', {
+    month: 'long',
+    day: 'numeric',
+    year: 'numeric',
+  });
+
+  const initials = employee.name
+    .split(' ')
+    .map(p => p[0])
+    .join('')
+    .toUpperCase();
+
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.contentContainer}>
-      {/* Employee Header */}
-      <View style={styles.headerContainer}>
-        <View style={styles.avatarContainer}>
-          <Text style={styles.avatarText}>
-            {employee.name.charAt(0).toUpperCase()}
+    <View style={styles.screen}>
+      <View style={styles.accentCircle} />
+      <ScrollView
+        style={styles.container}
+        contentContainerStyle={styles.contentContainer}
+      >
+        {/* Hero header */}
+        <View style={styles.headerCard}>
+          <View style={styles.headerLeft}>
+            <View style={styles.avatarContainer}>
+              <Text style={styles.avatarText}>{initials}</Text>
+            </View>
+            <View style={styles.headerInfo}>
+              <Text style={styles.employeeName}>{employee.name}</Text>
+              <Text style={styles.employeeMeta}>
+                {employee.employeeId} • {employee.department}
+              </Text>
+              <Text style={styles.employeeMeta}>{employee.jobRole}</Text>
+            </View>
+          </View>
+          <View style={styles.headerChip}>
+            <Ionicons name="shield-checkmark-outline" size={16} color="#FFFFFF" />
+            <Text style={styles.headerChipText}>Active</Text>
+          </View>
+        </View>
+
+        {/* Key tags row */}
+        <View style={styles.tagsRow}>
+          <View style={styles.tagChip}>
+            <Ionicons name="calendar-outline" size={14} color="#1976D2" />
+            <Text style={styles.tagText}>Joined {joinedDate}</Text>
+          </View>
+          {employee.baseLocation && (
+            <View style={styles.tagChip}>
+              <Ionicons name="navigate-outline" size={14} color="#1976D2" />
+              <Text style={styles.tagText}>Base location set</Text>
+            </View>
+          )}
+        </View>
+
+        {/* Info section */}
+        <View style={styles.sectionCard}>
+          <Text style={styles.sectionTitle}>Employee information</Text>
+          {renderInfoRow(
+            'briefcase-outline',
+            'Job role',
+            employee.jobRole,
+            '#4CAF50'
+          )}
+          {renderInfoRow(
+            'business-outline',
+            'Department',
+            employee.department,
+            '#FF9800'
+          )}
+          {employee.baseLocation &&
+            renderInfoRow(
+              'location-outline',
+              'Base location',
+              `${employee.baseLocation.latitude.toFixed(
+                4
+              )}, ${employee.baseLocation.longitude.toFixed(4)}`,
+              '#F44336'
+            )}
+          {renderInfoRow('id-card-outline', 'Employee ID', employee.employeeId)}
+        </View>
+
+        {/* Quick actions */}
+        <View style={styles.sectionCard}>
+          <Text style={styles.sectionTitle}>Quick actions</Text>
+
+          <TouchableOpacity
+            style={styles.actionButton}
+            onPress={handleMarkAttendance}
+            activeOpacity={0.9}
+          >
+            <View style={[styles.actionIconContainer, { backgroundColor: '#E8F5E9' }]}>
+              <Ionicons name="checkmark-circle" size={22} color="#4CAF50" />
+            </View>
+            <View style={styles.actionContent}>
+              <Text style={styles.actionTitle}>Mark attendance</Text>
+              <Text style={styles.actionSubtitle}>
+                Record today&apos;s attendance for this employee
+              </Text>
+            </View>
+            <Ionicons name="chevron-forward" size={20} color="#B0BEC5" />
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.actionButton}
+            onPress={handleViewHistory}
+            activeOpacity={0.9}
+          >
+            <View style={[styles.actionIconContainer, { backgroundColor: '#E3F2FD' }]}>
+              <Ionicons name="time-outline" size={22} color="#2196F3" />
+            </View>
+            <View style={styles.actionContent}>
+              <Text style={styles.actionTitle}>View history</Text>
+              <Text style={styles.actionSubtitle}>
+                See complete attendance history
+              </Text>
+            </View>
+            <Ionicons name="chevron-forward" size={20} color="#B0BEC5" />
+          </TouchableOpacity>
+        </View>
+
+        {/* Info banner */}
+        <View style={styles.infoBox}>
+          <Ionicons
+            name="finger-print-outline"
+            size={22}
+            color="#1976D2"
+          />
+          <Text style={styles.infoBoxText}>
+            Fingerprint templates for this employee are securely stored on the
+            server and used only for attendance verification.
           </Text>
         </View>
-        <Text style={styles.employeeName}>{employee.name}</Text>
-        <Text style={styles.employeeId}>ID: {employee.employeeId}</Text>
-      </View>
 
-      {/* Employee Information */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Employee Information</Text>
-        
-        {renderInfoRow(
-          'briefcase-outline',
-          'Job Role',
-          employee.jobRole,
-          '#4CAF50'
-        )}
-        
-        {renderInfoRow(
-          'business-outline',
-          'Department',
-          employee.department,
-          '#FF9800'
-        )}
-        
-        {employee.baseLocation && renderInfoRow(
-          'location-outline',
-          'Base Location',
-          `${employee.baseLocation.latitude.toFixed(4)}, ${employee.baseLocation.longitude.toFixed(4)}`,
-          '#F44336'
-        )}
-        
-        {renderInfoRow(
-          'calendar-outline',
-          'Joined',
-          new Date(employee.createdAt).toLocaleDateString('en-US', {
-            month: 'long',
-            day: 'numeric',
-            year: 'numeric',
-          }),
-          '#9C27B0'
-        )}
-      </View>
-
-      {/* Quick Actions */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Quick Actions</Text>
-        
-        <TouchableOpacity
-          style={styles.actionButton}
-          onPress={handleMarkAttendance}
-        >
-          <View style={styles.actionIconContainer}>
-            <Ionicons name="checkmark-circle" size={24} color="#4CAF50" />
-          </View>
-          <View style={styles.actionContent}>
-            <Text style={styles.actionTitle}>Mark Attendance</Text>
-            <Text style={styles.actionSubtitle}>
-              Record attendance for this employee
-            </Text>
-          </View>
-          <Ionicons name="chevron-forward" size={20} color="#999" />
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={styles.actionButton}
-          onPress={handleViewHistory}
-        >
-          <View style={styles.actionIconContainer}>
-            <Ionicons name="time" size={24} color="#2196F3" />
-          </View>
-          <View style={styles.actionContent}>
-            <Text style={styles.actionTitle}>View History</Text>
-            <Text style={styles.actionSubtitle}>
-              See complete attendance history
-            </Text>
-          </View>
-          <Ionicons name="chevron-forward" size={20} color="#999" />
-        </TouchableOpacity>
-      </View>
-
-      {/* Additional Info */}
-      <View style={styles.infoBox}>
-        <Ionicons name="information-circle-outline" size={24} color="#2196F3" />
-        <Text style={styles.infoBoxText}>
-          Employee fingerprint data is securely stored and used for attendance verification
-        </Text>
-      </View>
-    </ScrollView>
+        <View style={{ height: 20 }} />
+      </ScrollView>
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
+  screen: {
+    flex: 1,
+    backgroundColor: '#F3F5F9',
+  },
+  accentCircle: {
+    position: 'absolute',
+    top: -80,
+    left: -40,
+    width: 220,
+    height: 220,
+    borderRadius: 110,
+    backgroundColor: '#BBDEFB',
+  },
   container: {
     flex: 1,
-    backgroundColor: '#F5F5F5',
   },
   contentContainer: {
-    paddingBottom: 40,
+    paddingHorizontal: 16,
+    paddingTop: Platform.OS === 'ios' ? 10 : 8,
+    paddingBottom: 24,
   },
+
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#F5F5F5',
+    backgroundColor: '#F3F5F9',
   },
   loadingText: {
     marginTop: 12,
     fontSize: 16,
     color: '#666',
   },
+
   errorContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#F5F5F5',
+    backgroundColor: '#F3F5F9',
     padding: 20,
   },
   errorText: {
@@ -238,137 +273,195 @@ const styles = StyleSheet.create({
     backgroundColor: '#2196F3',
     paddingHorizontal: 32,
     paddingVertical: 12,
-    borderRadius: 8,
+    borderRadius: 999,
   },
   backButtonText: {
-    color: '#fff',
+    color: '#FFFFFF',
     fontSize: 16,
     fontWeight: '600',
   },
-  headerContainer: {
+
+  // Header / hero
+  headerCard: {
     backgroundColor: '#2196F3',
-    alignItems: 'center',
-    padding: 32,
-    paddingTop: 24,
-  },
-  avatarContainer: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    backgroundColor: '#1976D2',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 16,
-    borderWidth: 4,
-    borderColor: '#fff',
-  },
-  avatarText: {
-    fontSize: 40,
-    fontWeight: 'bold',
-    color: '#fff',
-  },
-  employeeName: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#fff',
-    marginBottom: 4,
-  },
-  employeeId: {
-    fontSize: 14,
-    color: '#E3F2FD',
-  },
-  section: {
+    borderRadius: 18,
     padding: 16,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#333',
-    marginBottom: 16,
-  },
-  infoRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#fff',
-    borderRadius: 12,
+    marginBottom: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 6,
+    elevation: 2,
+  },
+  headerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  avatarContainer: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: '#BBDEFB',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  avatarText: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#1976D2',
+  },
+  headerInfo: {
+    flex: 1,
+  },
+  employeeName: {
+    fontSize: 17,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  employeeMeta: {
+    fontSize: 12,
+    color: '#E3F2FD',
+    marginTop: 2,
+  },
+  headerChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
+    backgroundColor: '#1976D2',
+  },
+  headerChipText: {
+    marginLeft: 4,
+    color: '#FFFFFF',
+    fontSize: 11,
+    fontWeight: '600',
+  },
+
+  // Tag chips
+  tagsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    marginBottom: 10,
+  },
+  tagChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#E3F2FD',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
+    marginRight: 8,
+    marginBottom: 6,
+  },
+  tagText: {
+    marginLeft: 4,
+    fontSize: 11,
+    color: '#1976D2',
+    fontWeight: '500',
+  },
+
+  // Sections
+  sectionCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
     padding: 16,
     marginBottom: 12,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.06,
+    shadowRadius: 3,
+    elevation: 1,
+  },
+  sectionTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#37474F',
+    marginBottom: 10,
+  },
+
+  infoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderRadius: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 10,
+    marginBottom: 8,
   },
   infoIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 38,
+    height: 38,
+    borderRadius: 19,
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 16,
+    marginRight: 12,
   },
   infoContent: {
     flex: 1,
   },
   infoLabel: {
     fontSize: 12,
-    color: '#666',
-    marginBottom: 4,
+    color: '#78909C',
+    marginBottom: 2,
   },
   infoValue: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: '600',
-    color: '#333',
+    color: '#263238',
   },
+
+  // Actions
   actionButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#fff',
     borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    paddingVertical: 12,
+    paddingHorizontal: 10,
+    marginTop: 6,
   },
   actionIconContainer: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: '#F5F5F5',
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 16,
+    marginRight: 12,
   },
   actionContent: {
     flex: 1,
   },
   actionTitle: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: '600',
-    color: '#333',
-    marginBottom: 2,
+    color: '#263238',
   },
   actionSubtitle: {
-    fontSize: 13,
-    color: '#666',
+    fontSize: 12,
+    color: '#78909C',
+    marginTop: 2,
   },
+
+  // Info banner
   infoBox: {
     flexDirection: 'row',
+    alignItems: 'flex-start',
     backgroundColor: '#E3F2FD',
-    borderRadius: 12,
-    padding: 16,
-    marginHorizontal: 16,
-    marginTop: 8,
+    borderRadius: 14,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: '#BBDEFB',
+    marginTop: 4,
   },
   infoBoxText: {
     flex: 1,
-    fontSize: 13,
+    fontSize: 12,
     color: '#1976D2',
-    marginLeft: 12,
-    lineHeight: 20,
+    marginLeft: 10,
+    lineHeight: 18,
   },
 });
 
