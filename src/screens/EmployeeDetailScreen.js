@@ -1,452 +1,645 @@
-// src/screens/EmployeeDetailScreen.js
-import React, { useState, useEffect } from 'react';
+// src/screens/EmployeeCreateScreen.js
+// UPDATED VERSION with MFS110 RDService integration
+
+import React, { useState } from 'react';
 import {
   View,
   Text,
-  StyleSheet,
-  ScrollView,
+  TextInput,
   TouchableOpacity,
+  ScrollView,
+  KeyboardAvoidingView,
+  Platform,
   Alert,
   ActivityIndicator,
-  Platform,
+  StyleSheet,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { employeeAPI } from '../services/api';
+import { handleAPIError } from '../utils/errorHandler';
 
-const EmployeeDetailScreen = ({ route, navigation }) => {
-  const { employeeId } = route.params;
+// ✅ IMPORT MFS110 SERVICE
+import MFS110Service, {
+  enrollFingerprint,
+  showSetupInstructions,
+  validatePrerequisites,
+} from '../services/mfs110Service';
 
-  const [employee, setEmployee] = useState(null);
-  const [isLoading, setIsLoading] = useState(true);
+const EmployeeCreateScreen = ({ navigation }) => {
+  const [formData, setFormData] = useState({
+    name: '',
+    employeeId: '',
+    jobRole: '',
+    department: '',
+    fingerprintTemplate: '',
+    latitude: '',
+    longitude: '',
+  });
 
-  const fetchEmployeeDetails = async () => {
+  const [isLoading, setIsLoading] = useState(false);
+  const [isCapturing, setIsCapturing] = useState(false); // ✅ NEW
+  const [captureStatus, setCaptureStatus] = useState(''); // ✅ NEW
+  const [fingerprintQuality, setFingerprintQuality] = useState(null); // ✅ NEW
+
+  const updateField = (field, value) => {
+    setFormData((prev) => ({ ...prev, [field]: value }));
+  };
+
+  // ============================================
+  // ✅ NEW: MFS110 FINGERPRINT CAPTURE
+  // ============================================
+
+  const handleFingerprintCapture = async () => {
     try {
-      const response = await employeeAPI.getById(employeeId);
-      if (response.success) {
-        setEmployee(response.employee);
+      setIsCapturing(true);
+      setCaptureStatus('Initializing...');
+      setFingerprintQuality(null);
+
+      // Step 1: Validate prerequisites
+      setCaptureStatus('Checking device...');
+      const validation = await validatePrerequisites();
+
+      if (!validation.valid) {
+        Alert.alert(
+          'Setup Required',
+          validation.message,
+          [
+            {
+              text: 'View Instructions',
+              onPress: () => showSetupInstructions(),
+            },
+            { text: 'Cancel', style: 'cancel' },
+          ]
+        );
+        setIsCapturing(false);
+        setCaptureStatus('');
+        return;
+      }
+
+      // Step 2: Capture fingerprint
+      setCaptureStatus('Place finger on scanner...');
+
+      const result = await enrollFingerprint({
+        onProgress: (message) => {
+          setCaptureStatus(message);
+        },
+        onSuccess: (data) => {
+          console.log('[Fingerprint Captured]', {
+            quality: data.quality,
+            templateLength: data.template?.length,
+          });
+        },
+        onError: (error) => {
+          console.error('[Fingerprint Error]', error);
+        },
+      });
+
+      if (result.success) {
+        // Update form with captured template
+        updateField('fingerprintTemplate', result.template);
+        setFingerprintQuality(result.quality);
+        setCaptureStatus('Capture successful ✓');
+
+        Alert.alert(
+          'Success',
+          `Fingerprint captured successfully!\n\n` +
+            (result.quality ? `Quality Score: ${result.quality}/100` : 'Quality data not available'),
+          [{ text: 'OK' }]
+        );
+      } else {
+        setCaptureStatus('Capture failed');
+        Alert.alert('Capture Failed', result.error || 'Unknown error', [{ text: 'Retry' }]);
       }
     } catch (error) {
-      console.error('Error fetching employee details:', error);
-      Alert.alert('Error', 'Failed to load employee details');
+      console.error('[Capture Error]', error);
+      setCaptureStatus('Error occurred');
+      Alert.alert('Error', error.message || 'Failed to capture fingerprint');
+    } finally {
+      setIsCapturing(false);
+    }
+  };
+
+  // ============================================
+  // SUBMIT EMPLOYEE
+  // ============================================
+
+  const handleSubmit = async () => {
+    // Validation
+    if (!formData.name.trim()) {
+      Alert.alert('Error', 'Employee name is required');
+      return;
+    }
+    if (!formData.employeeId.trim()) {
+      Alert.alert('Error', 'Employee ID is required');
+      return;
+    }
+    if (!formData.jobRole.trim()) {
+      Alert.alert('Error', 'Job role is required');
+      return;
+    }
+    if (!formData.department.trim()) {
+      Alert.alert('Error', 'Department is required');
+      return;
+    }
+    if (!formData.fingerprintTemplate.trim()) {
+      Alert.alert('Error', 'Fingerprint template is required. Please capture fingerprint.');
+      return;
+    }
+    if (!formData.latitude || !formData.longitude) {
+      Alert.alert('Error', 'Base location is required');
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      const payload = {
+        name: formData.name.trim(),
+        employeeId: formData.employeeId.trim(),
+        jobRole: formData.jobRole.trim(),
+        department: formData.department.trim(),
+        fingerprintTemplate: formData.fingerprintTemplate,
+        baseLocation: {
+          latitude: parseFloat(formData.latitude),
+          longitude: parseFloat(formData.longitude),
+        },
+      };
+
+      const response = await employeeAPI.create(payload);
+
+      if (response.success) {
+        Alert.alert('Success', 'Employee created successfully!', [
+          {
+            text: 'OK',
+            onPress: () => navigation.goBack(),
+          },
+        ]);
+      }
+    } catch (error) {
+      const errorMessage = handleAPIError(error);
+      Alert.alert('Error', errorMessage);
     } finally {
       setIsLoading(false);
     }
   };
 
-  useEffect(() => {
-    fetchEmployeeDetails();
-  }, [employeeId]);
-
-  const handleMarkAttendance = () => {
-    if (!employee) return;
-    navigation.navigate('AttendanceCalendar', { employee });
-  };
-
-  const handleViewHistory = () => {
-    if (!employee) return;
-    navigation.navigate('AttendanceHistory', { employee });
-  };
-
-  const renderInfoRow = (icon, label, value, iconColor = '#2196F3') => (
-    <View style={styles.infoRow} key={label}>
-      <View style={[styles.infoIcon, { backgroundColor: `${iconColor}15` }]}>
-        <Ionicons name={icon} size={20} color={iconColor} />
-      </View>
-      <View style={styles.infoContent}>
-        <Text style={styles.infoLabel}>{label}</Text>
-        <Text style={styles.infoValue}>{value}</Text>
-      </View>
-    </View>
-  );
-
-  if (isLoading) {
-    return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#2196F3" />
-        <Text style={styles.loadingText}>Loading employee details...</Text>
-      </View>
-    );
-  }
-
-  if (!employee) {
-    return (
-      <View style={styles.errorContainer}>
-        <Ionicons name="alert-circle-outline" size={64} color="#999" />
-        <Text style={styles.errorText}>Employee not found</Text>
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={() => navigation.goBack()}
-        >
-          <Text style={styles.backButtonText}>Go back</Text>
-        </TouchableOpacity>
-      </View>
-    );
-  }
-
-  const joinedDate = new Date(employee.createdAt).toLocaleDateString('en-US', {
-    month: 'long',
-    day: 'numeric',
-    year: 'numeric',
-  });
-
-  const initials = employee.name
-    .split(' ')
-    .map(p => p[0])
-    .join('')
-    .toUpperCase();
+  const initials =
+    formData.name.trim() !== ''
+      ? formData.name
+          .split(' ')
+          .map((p) => p[0])
+          .join('')
+          .toUpperCase()
+      : 'EMP';
 
   return (
-    <View style={styles.screen}>
+    <KeyboardAvoidingView
+      style={styles.screen}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+    >
       <View style={styles.accentCircle} />
       <ScrollView
         style={styles.container}
-        contentContainerStyle={styles.contentContainer}
+        contentContainerStyle={styles.scrollContent}
+        keyboardShouldPersistTaps="handled"
       >
-        {/* Hero header */}
+        {/* Header */}
         <View style={styles.headerCard}>
           <View style={styles.headerLeft}>
-            <View style={styles.avatarContainer}>
-              <Text style={styles.avatarText}>{initials}</Text>
-            </View>
-            <View style={styles.headerInfo}>
-              <Text style={styles.employeeName}>{employee.name}</Text>
-              <Text style={styles.employeeMeta}>
-                {employee.employeeId} • {employee.department}
-              </Text>
-              <Text style={styles.employeeMeta}>{employee.jobRole}</Text>
-            </View>
+            <Text style={styles.headerTitle}>New employee</Text>
+            <Text style={styles.headerSubtitle}>
+              Fill in basic info, fingerprint and base location.
+            </Text>
           </View>
-          <View style={styles.headerChip}>
-            <Ionicons name="shield-checkmark-outline" size={16} color="#FFFFFF" />
-            <Text style={styles.headerChipText}>Active</Text>
+          <View style={styles.avatarCircle}>
+            <Text style={styles.avatarText}>{initials}</Text>
           </View>
         </View>
 
-        {/* Key tags row */}
-        <View style={styles.tagsRow}>
-          <View style={styles.tagChip}>
-            <Ionicons name="calendar-outline" size={14} color="#1976D2" />
-            <Text style={styles.tagText}>Joined {joinedDate}</Text>
-          </View>
-          {employee.baseLocation && (
-            <View style={styles.tagChip}>
-              <Ionicons name="navigate-outline" size={14} color="#1976D2" />
-              <Text style={styles.tagText}>Base location set</Text>
-            </View>
-          )}
-        </View>
-
-        {/* Info section */}
+        {/* Basic Info Section */}
         <View style={styles.sectionCard}>
-          <Text style={styles.sectionTitle}>Employee information</Text>
-          {renderInfoRow(
-            'briefcase-outline',
-            'Job role',
-            employee.jobRole,
-            '#4CAF50'
-          )}
-          {renderInfoRow(
-            'business-outline',
-            'Department',
-            employee.department,
-            '#FF9800'
-          )}
-          {employee.baseLocation &&
-            renderInfoRow(
-              'location-outline',
-              'Base location',
-              `${employee.baseLocation.latitude.toFixed(
-                4
-              )}, ${employee.baseLocation.longitude.toFixed(4)}`,
-              '#F44336'
+          <Text style={styles.sectionTitle}>Basic information</Text>
+
+          <View style={styles.field}>
+            <Text style={styles.label}>Full name *</Text>
+            <View style={styles.inputWrapper}>
+              <Ionicons name="person-outline" size={18} color="#9E9E9E" />
+              <TextInput
+                style={styles.input}
+                placeholder="John Doe"
+                placeholderTextColor="#B0BEC5"
+                value={formData.name}
+                onChangeText={(text) => updateField('name', text)}
+                editable={!isLoading && !isCapturing}
+              />
+            </View>
+          </View>
+
+          <View style={styles.dualRow}>
+            <View style={[styles.field, { flex: 1, marginRight: 8 }]}>
+              <Text style={styles.label}>Employee ID *</Text>
+              <View style={styles.inputWrapper}>
+                <Ionicons name="id-card-outline" size={18} color="#9E9E9E" />
+                <TextInput
+                  style={styles.input}
+                  placeholder="EMP001"
+                  placeholderTextColor="#B0BEC5"
+                  value={formData.employeeId}
+                  onChangeText={(text) => updateField('employeeId', text)}
+                  editable={!isLoading && !isCapturing}
+                  autoCapitalize="characters"
+                />
+              </View>
+            </View>
+
+            <View style={[styles.field, { flex: 1, marginLeft: 8 }]}>
+              <Text style={styles.label}>Department *</Text>
+              <View style={styles.inputWrapper}>
+                <Ionicons name="business-outline" size={18} color="#9E9E9E" />
+                <TextInput
+                  style={styles.input}
+                  placeholder="IT, HR, Finance..."
+                  placeholderTextColor="#B0BEC5"
+                  value={formData.department}
+                  onChangeText={(text) => updateField('department', text)}
+                  editable={!isLoading && !isCapturing}
+                />
+              </View>
+            </View>
+          </View>
+
+          <View style={styles.field}>
+            <Text style={styles.label}>Job role *</Text>
+            <View style={styles.inputWrapper}>
+              <Ionicons name="briefcase-outline" size={18} color="#9E9E9E" />
+              <TextInput
+                style={styles.input}
+                placeholder="Software Engineer, Manager..."
+                placeholderTextColor="#B0BEC5"
+                value={formData.jobRole}
+                onChangeText={(text) => updateField('jobRole', text)}
+                editable={!isLoading && !isCapturing}
+              />
+            </View>
+          </View>
+        </View>
+
+        {/* ✅ FINGERPRINT SECTION - UPDATED */}
+        <View style={styles.sectionCard}>
+          <View style={styles.sectionHeaderRow}>
+            <Text style={styles.sectionTitle}>Fingerprint template *</Text>
+            <View style={styles.sectionTag}>
+              <Ionicons name="shield-checkmark-outline" size={14} color="#1976D2" />
+              <Text style={styles.sectionTagText}>MFS110 RDService</Text>
+            </View>
+          </View>
+
+          <Text style={styles.sdkNote}>
+            Captures biometric data using MFS110 L1 RDService via USB OTG connection.
+          </Text>
+
+          {/* Capture Button */}
+          <TouchableOpacity
+            style={[
+              styles.captureButton,
+              isCapturing && styles.captureButtonDisabled,
+              formData.fingerprintTemplate && styles.captureButtonSuccess,
+            ]}
+            onPress={handleFingerprintCapture}
+            disabled={isLoading || isCapturing}
+            activeOpacity={0.9}
+          >
+            {isCapturing ? (
+              <>
+                <ActivityIndicator size="small" color="#FFFFFF" />
+                <Text style={styles.captureButtonText}>{captureStatus}</Text>
+              </>
+            ) : (
+              <>
+                <Ionicons
+                  name={formData.fingerprintTemplate ? 'checkmark-circle' : 'finger-print-outline'}
+                  size={20}
+                  color="#FFFFFF"
+                />
+                <Text style={styles.captureButtonText}>
+                  {formData.fingerprintTemplate ? 'Recapture fingerprint' : 'Capture fingerprint'}
+                </Text>
+              </>
             )}
-          {renderInfoRow('id-card-outline', 'Employee ID', employee.employeeId)}
+          </TouchableOpacity>
+
+          {/* Quality Indicator */}
+          {fingerprintQuality !== null && (
+            <View style={styles.qualityIndicator}>
+              <Text style={styles.qualityLabel}>Quality Score:</Text>
+              <View
+                style={[
+                  styles.qualityBadge,
+                  fingerprintQuality >= 70
+                    ? styles.qualityGood
+                    : fingerprintQuality >= 40
+                    ? styles.qualityMedium
+                    : styles.qualityPoor,
+                ]}
+              >
+                <Text style={styles.qualityValue}>{fingerprintQuality}/100</Text>
+              </View>
+            </View>
+          )}
+
+          {/* Template Preview (truncated) */}
+          <View style={styles.field}>
+            <View style={styles.inputWrapperMultiline}>
+              <TextInput
+                style={[styles.input, styles.textArea]}
+                placeholder="Fingerprint template will appear here after capture"
+                placeholderTextColor="#B0BEC5"
+                value={
+                  formData.fingerprintTemplate
+                    ? `${formData.fingerprintTemplate.substring(0, 100)}...\n(${formData.fingerprintTemplate.length} characters)`
+                    : ''
+                }
+                editable={false}
+                multiline
+                numberOfLines={3}
+              />
+            </View>
+          </View>
         </View>
 
-        {/* Quick actions */}
+        {/* Base Location Section */}
         <View style={styles.sectionCard}>
-          <Text style={styles.sectionTitle}>Quick actions</Text>
+          <Text style={styles.sectionTitle}>Base location *</Text>
+          <Text style={styles.sectionHint}>Used as default location when marking attendance.</Text>
 
-          <TouchableOpacity
-            style={styles.actionButton}
-            onPress={handleMarkAttendance}
-            activeOpacity={0.9}
-          >
-            <View style={[styles.actionIconContainer, { backgroundColor: '#E8F5E9' }]}>
-              <Ionicons name="checkmark-circle" size={22} color="#4CAF50" />
+          <View style={styles.dualRow}>
+            <View style={[styles.field, { flex: 1, marginRight: 8 }]}>
+              <Text style={styles.label}>Latitude</Text>
+              <View style={styles.inputWrapper}>
+                <Ionicons name="navigate-outline" size={18} color="#9E9E9E" />
+                <TextInput
+                  style={styles.input}
+                  placeholder="10.0261"
+                  placeholderTextColor="#B0BEC5"
+                  value={formData.latitude}
+                  onChangeText={(text) => updateField('latitude', text)}
+                  keyboardType="numeric"
+                  editable={!isLoading && !isCapturing}
+                />
+              </View>
             </View>
-            <View style={styles.actionContent}>
-              <Text style={styles.actionTitle}>Mark attendance</Text>
-              <Text style={styles.actionSubtitle}>
-                Record today&apos;s attendance for this employee
-              </Text>
-            </View>
-            <Ionicons name="chevron-forward" size={20} color="#B0BEC5" />
-          </TouchableOpacity>
 
-          <TouchableOpacity
-            style={styles.actionButton}
-            onPress={handleViewHistory}
-            activeOpacity={0.9}
-          >
-            <View style={[styles.actionIconContainer, { backgroundColor: '#E3F2FD' }]}>
-              <Ionicons name="time-outline" size={22} color="#2196F3" />
+            <View style={[styles.field, { flex: 1, marginLeft: 8 }]}>
+              <Text style={styles.label}>Longitude</Text>
+              <View style={styles.inputWrapper}>
+                <Ionicons name="locate-outline" size={18} color="#9E9E9E" />
+                <TextInput
+                  style={styles.input}
+                  placeholder="76.3125"
+                  placeholderTextColor="#B0BEC5"
+                  value={formData.longitude}
+                  onChangeText={(text) => updateField('longitude', text)}
+                  keyboardType="numeric"
+                  editable={!isLoading && !isCapturing}
+                />
+              </View>
             </View>
-            <View style={styles.actionContent}>
-              <Text style={styles.actionTitle}>View history</Text>
-              <Text style={styles.actionSubtitle}>
-                See complete attendance history
-              </Text>
-            </View>
-            <Ionicons name="chevron-forward" size={20} color="#B0BEC5" />
-          </TouchableOpacity>
+          </View>
         </View>
 
-        {/* Info banner */}
-        <View style={styles.infoBox}>
-          <Ionicons
-            name="finger-print-outline"
-            size={22}
-            color="#1976D2"
-          />
-          <Text style={styles.infoBoxText}>
-            Fingerprint templates for this employee are securely stored on the
-            server and used only for attendance verification.
+        {/* Info Banner */}
+        <View style={styles.infoBanner}>
+          <Ionicons name="information-circle-outline" size={20} color="#1976D2" />
+          <Text style={styles.infoText}>
+            Ensure MFS110 L1 RDService app is installed and the scanner is connected via OTG before
+            capturing fingerprint.
           </Text>
         </View>
 
-        <View style={{ height: 20 }} />
+        {/* Submit Button */}
+        <TouchableOpacity
+          style={[styles.submitButton, isLoading && styles.submitButtonDisabled]}
+          onPress={handleSubmit}
+          disabled={isLoading || isCapturing}
+        >
+          <View style={styles.submitContent}>
+            {isLoading ? (
+              <ActivityIndicator size="small" color="#FFFFFF" />
+            ) : (
+              <Ionicons name="checkmark-circle-outline" size={18} color="#FFFFFF" />
+            )}
+            <Text style={styles.submitButtonText}>
+              {isLoading ? 'Creating...' : 'Create employee'}
+            </Text>
+          </View>
+        </TouchableOpacity>
       </ScrollView>
-    </View>
+    </KeyboardAvoidingView>
   );
 };
+
+// ============================================
+// STYLES (keeping existing styles + new ones)
+// ============================================
 
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: '#F3F5F9',
+    backgroundColor: '#F5F7FA',
   },
   accentCircle: {
     position: 'absolute',
-    top: -80,
-    left: -40,
-    width: 220,
-    height: 220,
-    borderRadius: 110,
-    backgroundColor: '#BBDEFB',
+    top: -100,
+    right: -100,
+    width: 300,
+    height: 300,
+    borderRadius: 150,
+    backgroundColor: '#E3F2FD',
+    opacity: 0.5,
   },
   container: {
     flex: 1,
   },
-  contentContainer: {
-    paddingHorizontal: 16,
-    paddingTop: Platform.OS === 'ios' ? 10 : 8,
-    paddingBottom: 24,
-  },
-
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#F3F5F9',
-  },
-  loadingText: {
-    marginTop: 12,
-    fontSize: 16,
-    color: '#666',
-  },
-
-  errorContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#F3F5F9',
-    padding: 20,
-  },
-  errorText: {
-    fontSize: 18,
-    color: '#666',
-    marginTop: 16,
-    marginBottom: 24,
-  },
-  backButton: {
-    backgroundColor: '#2196F3',
-    paddingHorizontal: 32,
-    paddingVertical: 12,
-    borderRadius: 999,
-  },
-  backButtonText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-
-  // Header / hero
-  headerCard: {
-    backgroundColor: '#2196F3',
-    borderRadius: 18,
+  scrollContent: {
     padding: 16,
+    paddingBottom: 32,
+  },
+  headerCard: {
     flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 10,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 16,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.15,
-    shadowRadius: 6,
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
     elevation: 2,
   },
   headerLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
     flex: 1,
   },
-  avatarContainer: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    backgroundColor: '#BBDEFB',
+  headerTitle: {
+    fontSize: 22,
+    fontWeight: '700',
+    color: '#1A237E',
+    marginBottom: 4,
+  },
+  headerSubtitle: {
+    fontSize: 13,
+    color: '#757575',
+  },
+  avatarCircle: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: '#2196F3',
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 12,
   },
   avatarText: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: '#1976D2',
-  },
-  headerInfo: {
-    flex: 1,
-  },
-  employeeName: {
-    fontSize: 17,
+    fontSize: 18,
     fontWeight: '700',
     color: '#FFFFFF',
   },
-  employeeMeta: {
-    fontSize: 12,
-    color: '#E3F2FD',
-    marginTop: 2,
-  },
-  headerChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 999,
-    backgroundColor: '#1976D2',
-  },
-  headerChipText: {
-    marginLeft: 4,
-    color: '#FFFFFF',
-    fontSize: 11,
-    fontWeight: '600',
-  },
-
-  // Tag chips
-  tagsRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    marginBottom: 10,
-  },
-  tagChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#E3F2FD',
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 999,
-    marginRight: 8,
-    marginBottom: 6,
-  },
-  tagText: {
-    marginLeft: 4,
-    fontSize: 11,
-    color: '#1976D2',
-    fontWeight: '500',
-  },
-
-  // Sections
   sectionCard: {
     backgroundColor: '#FFFFFF',
     borderRadius: 16,
     padding: 16,
-    marginBottom: 12,
+    marginBottom: 16,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.06,
-    shadowRadius: 3,
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
     elevation: 1,
   },
+  sectionHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
   sectionTitle: {
-    fontSize: 15,
+    fontSize: 16,
     fontWeight: '700',
-    color: '#37474F',
+    color: '#263238',
+    flex: 1,
+  },
+  sectionTag: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#E3F2FD',
+    borderRadius: 12,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  sectionTagText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#1976D2',
+    marginLeft: 4,
+  },
+  sectionHint: {
+    fontSize: 12,
+    color: '#9E9E9E',
+    marginBottom: 12,
+  },
+  field: {
+    marginBottom: 12,
+  },
+  dualRow: {
+    flexDirection: 'row',
+  },
+  label: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#546E7A',
+    marginBottom: 6,
+  },
+  inputWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FAFAFA',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
+    paddingHorizontal: 10,
+  },
+  inputWrapperMultiline: {
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
+    backgroundColor: '#FAFAFA',
+  },
+  input: {
+    flex: 1,
+    paddingVertical: 10,
+    marginLeft: 8,
+    fontSize: 14,
+    color: '#263238',
+  },
+  textArea: {
+    minHeight: 80,
+    textAlignVertical: 'top',
+    paddingHorizontal: 12,
+  },
+  sdkNote: {
+    fontSize: 12,
+    color: '#FF9800',
     marginBottom: 10,
   },
-
-  infoRow: {
+  captureButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    borderRadius: 12,
-    paddingVertical: 10,
-    paddingHorizontal: 10,
-    marginBottom: 8,
-  },
-  infoIcon: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 12,
-  },
-  infoContent: {
-    flex: 1,
-  },
-  infoLabel: {
-    fontSize: 12,
-    color: '#78909C',
-    marginBottom: 2,
-  },
-  infoValue: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#263238',
-  },
-
-  // Actions
-  actionButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    borderRadius: 12,
+    backgroundColor: '#4CAF50',
+    borderRadius: 999,
     paddingVertical: 12,
-    paddingHorizontal: 10,
-    marginTop: 6,
+    paddingHorizontal: 16,
+    marginBottom: 12,
   },
-  actionIconContainer: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 12,
+  captureButtonDisabled: {
+    backgroundColor: '#B0BEC5',
   },
-  actionContent: {
-    flex: 1,
+  captureButtonSuccess: {
+    backgroundColor: '#00897B',
   },
-  actionTitle: {
+  captureButtonText: {
+    color: '#FFFFFF',
     fontSize: 14,
     fontWeight: '600',
+    marginLeft: 8,
+  },
+  qualityIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  qualityLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#546E7A',
+    marginRight: 8,
+  },
+  qualityBadge: {
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  qualityGood: {
+    backgroundColor: '#C8E6C9',
+  },
+  qualityMedium: {
+    backgroundColor: '#FFE082',
+  },
+  qualityPoor: {
+    backgroundColor: '#FFCDD2',
+  },
+  qualityValue: {
+    fontSize: 13,
+    fontWeight: '700',
     color: '#263238',
   },
-  actionSubtitle: {
-    fontSize: 12,
-    color: '#78909C',
-    marginTop: 2,
-  },
-
-  // Info banner
-  infoBox: {
+  infoBanner: {
     flexDirection: 'row',
     alignItems: 'flex-start',
     backgroundColor: '#E3F2FD',
@@ -455,14 +648,40 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#BBDEFB',
     marginTop: 4,
+    marginBottom: 14,
   },
-  infoBoxText: {
+  infoText: {
     flex: 1,
+    marginLeft: 8,
     fontSize: 12,
     color: '#1976D2',
-    marginLeft: 10,
     lineHeight: 18,
+  },
+  submitButton: {
+    backgroundColor: '#2196F3',
+    borderRadius: 999,
+    paddingVertical: 14,
+    alignItems: 'center',
+    marginBottom: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    elevation: 5,
+  },
+  submitButtonDisabled: {
+    backgroundColor: '#B0BEC5',
+  },
+  submitContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  submitButtonText: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '700',
+    marginLeft: 8,
   },
 });
 
-export default EmployeeDetailScreen;
+export default EmployeeCreateScreen;

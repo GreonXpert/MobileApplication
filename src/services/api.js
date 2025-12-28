@@ -1,78 +1,56 @@
-// src/services/api.js - COMPLETE FIXED VERSION
+// src/services/api.js
+// UPDATED with fingerprint enrollment API
+
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-/**
- * API Service Configuration
- * 
- * This file creates an axios instance configured with:
- * - Base URL pointing to backend server
- * - Automatic JWT token injection
- * - Error handling
- * 
- * ⚠️ IMPORTANT: Update BASE_URL with your backend server IP address
- */
-
 // ============================================
-// CONFIGURATION - UPDATE THIS!
+// API CONFIGURATION
 // ============================================
 
-// For local development:
-// - If testing on Android Emulator: use http://10.0.2.2:5000
-// - If testing on iOS Simulator: use http://localhost:5000
-// - If testing on physical device: use http://<YOUR_COMPUTER_IP>:5000
-//   (Find your IP: Windows: ipconfig, Mac/Linux: ifconfig)
-// 
-// For production:
-// - Use your deployed backend URL: https://your-domain.com
+// Use your backend URL here
+// For local development: http://YOUR_LOCAL_IP:5000/api
+// For production: https://your-domain.com/api
 
-const BASE_URL = 'http://192.168.1.4:5000/api';
+const API_BASE_URL = __DEV__
+  ? 'http://192.168.20.3:5000/api' // ⚠️ CHANGE THIS to your local IP
+  : 'https://your-production-api.com/api';
 
 // ============================================
+// AXIOS INSTANCE
+// ============================================
 
-/**
- * Create axios instance with default configuration
- */
 const api = axios.create({
-  baseURL: BASE_URL,
-  timeout: 30000, // 30 seconds
+  baseURL: API_BASE_URL,
+  timeout: 30000,
   headers: {
     'Content-Type': 'application/json',
   },
 });
 
-/**
- * Request Interceptor
- * Automatically adds JWT token to all requests
- */
+// ============================================
+// REQUEST INTERCEPTOR (Add JWT Token)
+// ============================================
+
 api.interceptors.request.use(
   async (config) => {
-    try {
-      // Get token from AsyncStorage
-      const token = await AsyncStorage.getItem('token');
-      
-      if (token) {
-        // Add token to Authorization header
-        config.headers.Authorization = `Bearer ${token}`;
-      }
-      
-      console.log(`📤 API Request: ${config.method.toUpperCase()} ${config.url}`);
-      return config;
-    } catch (error) {
-      console.error('Error in request interceptor:', error);
-      return config;
+    const token = await AsyncStorage.getItem('token');
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
     }
+    console.log(`📤 API Request: ${config.method.toUpperCase()} ${config.url}`);
+    return config;
   },
   (error) => {
-    console.error('Request interceptor error:', error);
+    console.error('❌ Request Error:', error);
     return Promise.reject(error);
   }
 );
 
-/**
- * Response Interceptor
- * Handles common errors and logging
- */
+// ============================================
+// RESPONSE INTERCEPTOR
+// ============================================
+
 api.interceptors.response.use(
   (response) => {
     console.log(`✅ API Response: ${response.config.url} - ${response.status}`);
@@ -80,41 +58,37 @@ api.interceptors.response.use(
   },
   async (error) => {
     console.error(`❌ API Error: ${error.config?.url}`, error.response?.data || error.message);
-    
+
     // Handle 401 Unauthorized (token expired or invalid)
     if (error.response?.status === 401) {
-      // Clear stored token
       await AsyncStorage.removeItem('token');
       await AsyncStorage.removeItem('user');
-      
-      // You can add navigation to login screen here if needed
-      // navigationRef.navigate('Login');
+      // Navigation to login should be handled by the app
     }
-    
+
     return Promise.reject(error);
   }
 );
 
-/**
- * API Methods
- */
+// ============================================
+// AUTHENTICATION API
+// ============================================
 
-// Authentication
 export const authAPI = {
   login: async (credentials) => {
     try {
       const response = await api.post('/auth/login', credentials);
-      return response.data; // ✅ Return only the data
+      return response.data;
     } catch (error) {
       console.error('Login API error:', error);
       throw error;
     }
   },
-  
+
   verifyToken: async () => {
     try {
       const response = await api.get('/auth/verify');
-      return response.data; // ✅ Return only the data
+      return response.data;
     } catch (error) {
       console.error('Verify token error:', error);
       throw error;
@@ -122,143 +96,183 @@ export const authAPI = {
   },
 };
 
-// Employee Management
+// ============================================
+// EMPLOYEE API
+// ============================================
+
 export const employeeAPI = {
   getAll: async () => {
     const response = await api.get('/admin/employees');
-    return response.data; // ✅ Return only the data
+    return response.data;
   },
-  
+
   getById: async (id) => {
     const response = await api.get(`/admin/employees/${id}`);
-    return response.data; // ✅ Return only the data
+    return response.data;
   },
-  
+
   create: async (employeeData) => {
     const response = await api.post('/admin/employees', employeeData);
-    return response.data; // ✅ Return only the data
+    return response.data;
   },
-  
+
   update: async (id, employeeData) => {
     const response = await api.put(`/admin/employees/${id}`, employeeData);
-    return response.data; // ✅ Return only the data
+    return response.data;
   },
-  
+
   delete: async (id) => {
     const response = await api.delete(`/admin/employees/${id}`);
-    return response.data; // ✅ Return only the data
-  },
-  
-  /**
-   * Get attendance history for an employee
-   */
-  getAttendanceHistory: async (employeeId, dateRange = {}) => {
-    const params = new URLSearchParams();
-    if (dateRange.startDate) params.append('startDate', dateRange.startDate);
-    if (dateRange.endDate) params.append('endDate', dateRange.endDate);
-    
-    const response = await api.get(`/admin/attendance/history/${employeeId}?${params}`);
-    return response.data; // ✅ Return only the data
+    return response.data;
   },
 };
 
-// Attendance Management
+// ============================================
+// ATTENDANCE API
+// ============================================
+
 export const attendanceAPI = {
   mark: async (attendanceData) => {
     const response = await api.post('/admin/attendance/mark', attendanceData);
-    return response.data; // ✅ Return only the data
+    return response.data;
   },
-  
-  getHistory: async (employeeId, params = {}) => {
-    const queryString = new URLSearchParams(params).toString();
-    const response = await api.get(`/admin/attendance/history/${employeeId}?${queryString}`);
-    return response.data; // ✅ Return only the data
-  },
-  
-  getDailyAttendance: async (date) => {
-    const params = date ? `?date=${date}` : '';
-    const response = await api.get(`/admin/attendance/daily${params}`);
-    return response.data; // ✅ Return only the data
-  },
-};
 
-// Dashboard API
-export const dashboardAPI = {
-  // Get dashboard statistics
-  getStats: async () => {
-    const response = await api.get('/admin/dashboard/stats');
-    return response.data; // ✅ Return only the data
-  },
-  
-  // Get daily attendance with all employee details
-  getDailyAttendance: async (date) => {
-    const params = date ? `?date=${date}` : '';
-    const response = await api.get(`/admin/dashboard/daily-attendance${params}`);
-    return response.data; // ✅ Return only the data
-  },
-  
-  // Get employee attendance history
-  getEmployeeHistory: async (employeeId, params = {}) => {
-    const queryString = new URLSearchParams(params).toString();
-    const response = await api.get(`/admin/dashboard/employee-history/${employeeId}?${queryString}`);
-    return response.data; // ✅ Return only the data
-  },
-  
-  // Get monthly report
-  getMonthlyReport: async (month, year) => {
+  getHistory: async (employeeId, startDate, endDate) => {
     const params = new URLSearchParams();
-    if (month) params.append('month', month);
-    if (year) params.append('year', year);
-    const response = await api.get(`/admin/dashboard/monthly-report?${params.toString()}`);
-    return response.data; // ✅ Return only the data
+    if (startDate) params.append('startDate', startDate);
+    if (endDate) params.append('endDate', endDate);
+
+    const response = await api.get(`/admin/attendance/history/${employeeId}?${params.toString()}`);
+    return response.data;
+  },
+
+  getAll: async (filters = {}) => {
+    const params = new URLSearchParams();
+    Object.keys(filters).forEach((key) => {
+      if (filters[key]) params.append(key, filters[key]);
+    });
+
+    const response = await api.get(`/superadmin/attendance?${params.toString()}`);
+    return response.data;
   },
 };
 
-// Superadmin Dashboard API
-export const superadminDashboardAPI = {
-  // Get overview
-  getOverview: async () => {
-    const response = await api.get('/superadmin/dashboard/overview');
-    return response.data; // ✅ Return only the data
+// ============================================
+// ✅ FINGERPRINT API (NEW)
+// ============================================
+
+export const fingerprintAPI = {
+  /**
+   * Enroll a new fingerprint template
+   *
+   * @param {Object} data - Enrollment data
+   * @param {string} data.employeeId - Employee ID
+   * @param {string} data.templateBase64 - Base64-encoded template
+   * @param {string} data.format - Template format (ISO_19794_2, etc.)
+   * @param {number} data.fingerIndex - Finger index (0-9, optional)
+   * @param {string} data.fingerName - Finger name (optional)
+   * @param {number} data.quality - Quality score (0-100, optional)
+   * @param {Object} data.deviceInfo - Device information (optional)
+   * @returns {Promise<Object>} Enrollment result
+   */
+  enroll: async (data) => {
+    try {
+      const response = await api.post('/fingerprints/enroll', {
+        employeeId: data.employeeId,
+        templateBase64: data.templateBase64,
+        format: data.format || 'ISO_19794_2',
+        fingerIndex: data.fingerIndex,
+        fingerName: data.fingerName,
+        quality: data.quality,
+        deviceInfo: data.deviceInfo || {
+          vendor: 'Mantra',
+          model: 'MFS110',
+          rdServiceVersion: '1.4.1',
+        },
+      });
+      return response.data;
+    } catch (error) {
+      console.error('Fingerprint enrollment error:', error);
+      throw error;
+    }
   },
-  
-  // Get analytics
-  getAnalytics: async (period = 'month') => {
-    const response = await api.get(`/superadmin/dashboard/analytics?period=${period}`);
-    return response.data; // ✅ Return only the data
+
+  /**
+   * Get all fingerprints for an employee
+   *
+   * @param {string} employeeId - Employee ID
+   * @returns {Promise<Object>} Fingerprint list
+   */
+  getByEmployeeId: async (employeeId) => {
+    try {
+      const response = await api.get(`/fingerprints/${employeeId}`);
+      return response.data;
+    } catch (error) {
+      console.error('Get fingerprints error:', error);
+      throw error;
+    }
   },
-  
-  // Get alerts
-  getAlerts: async () => {
-    const response = await api.get('/superadmin/dashboard/alerts');
-    return response.data; // ✅ Return only the data
+
+  /**
+   * Get decrypted template by fingerprint ID
+   * ⚠️ Use with caution - only for admin purposes
+   *
+   * @param {string} fingerprintId - Fingerprint document ID
+   * @returns {Promise<Object>} Template data
+   */
+  getTemplate: async (fingerprintId) => {
+    try {
+      const response = await api.get(`/fingerprints/template/${fingerprintId}`);
+      return response.data;
+    } catch (error) {
+      console.error('Get template error:', error);
+      throw error;
+    }
   },
-  
-  // Get all attendance (superadmin feed)
-  getAllAttendance: async (params = {}) => {
-    const queryString = new URLSearchParams(params).toString();
-    const response = await api.get(`/superadmin/attendance?${queryString}`);
-    return response.data; // ✅ Return only the data
+
+  /**
+   * Delete (revoke) a fingerprint template
+   *
+   * @param {string} fingerprintId - Fingerprint document ID
+   * @param {string} reason - Revocation reason (optional)
+   * @returns {Promise<Object>} Deletion result
+   */
+  delete: async (fingerprintId, reason = '') => {
+    try {
+      const response = await api.delete(`/fingerprints/${fingerprintId}`, {
+        data: { reason },
+      });
+      return response.data;
+    } catch (error) {
+      console.error('Delete fingerprint error:', error);
+      throw error;
+    }
+  },
+
+  /**
+   * Get all fingerprints (superadmin only)
+   *
+   * @param {Object} filters - Query filters
+   * @returns {Promise<Object>} Fingerprint list with pagination
+   */
+  getAll: async (filters = {}) => {
+    try {
+      const params = new URLSearchParams();
+      if (filters.status) params.append('status', filters.status);
+      if (filters.limit) params.append('limit', filters.limit);
+      if (filters.page) params.append('page', filters.page);
+
+      const response = await api.get(`/fingerprints/list/all?${params.toString()}`);
+      return response.data;
+    } catch (error) {
+      console.error('Get all fingerprints error:', error);
+      throw error;
+    }
   },
 };
 
-// Export the configured axios instance for custom requests
+// ============================================
+// EXPORT DEFAULT
+// ============================================
+
 export default api;
-
-/**
- * Helper function to handle API errors
- * @param {Error} error - Axios error object
- * @returns {string} User-friendly error message
- */
-export const handleAPIError = (error) => {
-  if (error.response) {
-    // Server responded with error status
-    return error.response.data?.message || 'Server error occurred';
-  } else if (error.request) {
-    // Request made but no response received
-    return 'Network error. Please check your connection and ensure the backend server is running.';
-  } else {
-    // Something else happened
-    return error.message || 'An unexpected error occurred';
-  }
-};
