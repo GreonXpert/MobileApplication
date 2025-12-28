@@ -12,7 +12,8 @@ import {
   Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { attendanceAPI, handleAPIError } from '../services/api';
+import { attendanceAPI } from '../services/api';
+import { handleAPIError } from '../utils/errorHandler';
 
 const AttendanceMarkScreen = ({ route, navigation }) => {
   const { employee, selectedDate } = route.params;

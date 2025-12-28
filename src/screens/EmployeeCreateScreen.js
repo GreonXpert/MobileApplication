@@ -13,7 +13,8 @@ import {
   Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { employeeAPI, handleAPIError } from '../services/api';
+import { employeeAPI } from '../services/api';
+import { handleAPIError } from '../utils/errorHandler';
 
 const EmployeeCreateScreen = ({ navigation }) => {
   const [formData, setFormData] = useState({

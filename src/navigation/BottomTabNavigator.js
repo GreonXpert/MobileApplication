@@ -3,10 +3,11 @@ import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
 import { Platform, View, Text, ActivityIndicator, StyleSheet } from 'react-native';
-import { BlurView } from 'expo-blur'; // 👈 new
+import { BlurView } from 'expo-blur';
 import { useAuth } from '../context/AuthContext';
 
 import DashboardScreen from '../screens/DashboardScreen';
+import AdminDashboard from '../screens/AdminDashboard';  // 👈 ADD THIS
 import EmployeeListScreen from '../screens/EmployeeListScreen';
 import ProfileScreen from '../screens/ProfileScreen';
 
@@ -29,6 +30,8 @@ const BottomTabNavigator = () => {
     if (typeof user.role !== 'string') return 'admin';
     return user.role.toLowerCase().trim();
   }, [user]);
+
+  const isSuperadmin = userRole === 'superadmin';  // 👈 ADD THIS
 
   return (
     <Tab.Navigator
@@ -55,11 +58,9 @@ const BottomTabNavigator = () => {
             );
           },
 
-          // Colors
           tabBarActiveTintColor: '#2196F3',
           tabBarInactiveTintColor: '#9E9E9E',
 
-          // Floating + rounded + glass
           tabBarStyle: {
             position: 'absolute',
             bottom: Platform.OS === 'ios' ? 24 : 18,
@@ -68,7 +69,7 @@ const BottomTabNavigator = () => {
             height: Platform.OS === 'ios' ? 78 : 70,
             borderRadius: 24,
             borderTopWidth: 0,
-            backgroundColor: 'transparent', // BlurView will be the background
+            backgroundColor: 'transparent',
             elevation: 0,
             shadowColor: '#000',
             shadowOffset: { width: 0, height: 4 },
@@ -80,57 +81,42 @@ const BottomTabNavigator = () => {
           tabBarBackground: () => (
             <BlurView
               tint={Platform.OS === 'ios' ? 'light' : 'default'}
-              intensity={70}
+              intensity={Platform.OS === 'ios' ? 100 : 95}
               style={StyleSheet.absoluteFill}
             />
           ),
 
+          headerShown: false,
           tabBarLabelStyle: {
             fontSize: 11,
             fontWeight: '600',
+            marginBottom: Platform.OS === 'ios' ? 0 : 8,
           },
-
-          headerStyle: {
-            backgroundColor: '#2196F3',
-            elevation: 4,
-            shadowColor: '#000',
-            shadowOffset: { width: 0, height: 2 },
-            shadowOpacity: 0.2,
-            shadowRadius: 4,
-          },
-          headerTintColor: '#fff',
-          headerTitleStyle: {
-            fontWeight: 'bold',
-            fontSize: 18,
-          },
-
-          // Slight press feedback
-          tabBarHideOnKeyboard: true,
         };
       }}
     >
+      {/* 👇 UPDATE THIS SECTION */}
       <Tab.Screen
         name="Dashboard"
-        component={DashboardScreen}
+        component={isSuperadmin ? DashboardScreen : AdminDashboard}
         options={{
           title: 'Dashboard',
-          tabBarLabel: 'Dashboard',
         }}
       />
+
       <Tab.Screen
         name="Employees"
         component={EmployeeListScreen}
         options={{
           title: 'Employees',
-          tabBarLabel: 'Employees',
         }}
       />
+
       <Tab.Screen
         name="Profile"
         component={ProfileScreen}
         options={{
           title: 'Profile',
-          tabBarLabel: 'Profile',
         }}
       />
     </Tab.Navigator>
@@ -142,9 +128,11 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+    backgroundColor: '#F3F5F9',
   },
   loaderText: {
     marginTop: 16,
+    fontSize: 16,
     color: '#666',
   },
   iconWrapper: {
@@ -154,9 +142,9 @@ const styles = StyleSheet.create({
   iconDot: {
     position: 'absolute',
     top: -6,
-    width: 6,
-    height: 6,
-    borderRadius: 3,
+    width: 4,
+    height: 4,
+    borderRadius: 2,
     backgroundColor: '#2196F3',
   },
 });
