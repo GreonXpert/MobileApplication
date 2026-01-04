@@ -10,7 +10,6 @@ import {
   Alert,
   ActivityIndicator,
   Dimensions,
-  Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { dashboardAPI } from '../services/api';
@@ -22,14 +21,30 @@ const AdminDashboard = ({ navigation }) => {
   const { user } = useAuth();
 
   const [stats, setStats] = useState(null);
+  const [dailyAttendance, setDailyAttendance] = useState([]);
+  const [departmentStats, setDepartmentStats] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
   const fetchDashboardData = async () => {
     try {
-      const response = await dashboardAPI.getStats();
-      if (response?.success) {
-        setStats(response.stats);
+      // Fetch all dashboard data
+      const [statsResponse, dailyResponse] = await Promise.all([
+        dashboardAPI.getStats(),
+        dashboardAPI.getDailyAttendance(),
+      ]);
+
+      if (statsResponse?.success) {
+        setStats(statsResponse.stats);
+        
+        // Extract department stats if available
+        if (statsResponse.stats?.departmentStats) {
+          setDepartmentStats(statsResponse.stats.departmentStats);
+        }
+      }
+
+      if (dailyResponse?.success) {
+        setDailyAttendance(dailyResponse.employees || []);
       }
     } catch (error) {
       console.error('Error fetching admin dashboard data:', error);
@@ -61,11 +76,15 @@ const AdminDashboard = ({ navigation }) => {
   };
 
   const handleViewMonthlyReport = () => {
-    Alert.alert('Monthly Report', 'Monthly report feature coming soon!');
+    navigation.navigate('MonthlyReport');
   };
 
   const handleMarkAttendance = () => {
     navigation.navigate('AttendanceCalendar');
+  };
+
+  const handleViewDepartment = (department) => {
+    navigation.navigate('DepartmentDetails', { department });
   };
 
   const renderStatCard = (title, value, icon, color, onPress) => (
@@ -77,14 +96,14 @@ const AdminDashboard = ({ navigation }) => {
       key={title}
     >
       <View style={[styles.statIconWrap, { backgroundColor: `${color}15` }]}>
-        <Ionicons name={icon} size={22} color={color} />
+        <Ionicons name={icon} size={24} color={color} />
       </View>
       <View style={styles.statContent}>
         <Text style={styles.statValue}>{value}</Text>
         <Text style={styles.statTitle}>{title}</Text>
       </View>
       {onPress && (
-        <Ionicons name="chevron-forward" size={16} color={color} />
+        <Ionicons name="chevron-forward" size={18} color={color} />
       )}
     </TouchableOpacity>
   );
@@ -95,7 +114,7 @@ const AdminDashboard = ({ navigation }) => {
     return (
       <View style={styles.statusCard} key={label}>
         <View style={styles.statusTopRow}>
-          <View style={[styles.statusDotLarge, { backgroundColor: color }]} />
+          <View style={[styles.statusDot, { backgroundColor: color }]} />
           <Text style={styles.statusLabel}>{label}</Text>
         </View>
         <View style={styles.statusBottomRow}>
@@ -107,6 +126,46 @@ const AdminDashboard = ({ navigation }) => {
       </View>
     );
   };
+
+  const renderDepartmentCard = (dept) => (
+    <TouchableOpacity
+      key={dept.department}
+      style={styles.departmentCard}
+      onPress={() => handleViewDepartment(dept.department)}
+      activeOpacity={0.9}
+    >
+      <View style={styles.deptHeader}>
+        <View style={styles.deptIconWrap}>
+          <Ionicons name="business" size={20} color="#2196F3" />
+        </View>
+        <View style={styles.deptInfo}>
+          <Text style={styles.deptName}>{dept.department}</Text>
+          <Text style={styles.deptEmployees}>{dept.totalEmployees} employees</Text>
+        </View>
+      </View>
+      <View style={styles.deptStats}>
+        <View style={styles.deptStatItem}>
+          <Text style={styles.deptStatLabel}>Present</Text>
+          <Text style={[styles.deptStatValue, { color: '#4CAF50' }]}>
+            {dept.presentToday}
+          </Text>
+        </View>
+        <View style={styles.deptStatItem}>
+          <Text style={styles.deptStatLabel}>Absent</Text>
+          <Text style={[styles.deptStatValue, { color: '#F44336' }]}>
+            {dept.absentToday}
+          </Text>
+        </View>
+        <View style={styles.deptStatItem}>
+          <Text style={styles.deptStatLabel}>Rate</Text>
+          <Text style={[styles.deptStatValue, { color: '#2196F3' }]}>
+            {dept.attendanceRate}%
+          </Text>
+        </View>
+      </View>
+      <Ionicons name="chevron-forward" size={18} color="#9E9E9E" style={styles.deptChevron} />
+    </TouchableOpacity>
+  );
 
   const getRoleDisplay = () => {
     const role = user?.role || 'ADMIN';
@@ -154,12 +213,14 @@ const AdminDashboard = ({ navigation }) => {
           <View style={styles.welcomeLeft}>
             <Text style={styles.welcomeTitle}>Admin Dashboard</Text>
             <Text style={styles.welcomeSubtitle}>
-              Welcome, {user?.username || 'Admin'} • Role: {getRoleDisplay()}
+              Welcome, {user?.username || 'Admin'} • {getRoleDisplay()}
             </Text>
           </View>
           <View style={styles.welcomeBadge}>
             <Ionicons name="calendar-outline" size={18} color="#FFFFFF" />
-            <Text style={styles.welcomeBadgeText}>Today</Text>
+            <Text style={styles.welcomeBadgeText}>
+              {new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+            </Text>
           </View>
         </View>
 
@@ -170,40 +231,41 @@ const AdminDashboard = ({ navigation }) => {
           contentContainerStyle={styles.metricsStrip}
         >
           {renderStatCard(
-            'Total employees',
+            'Total Employees',
             totalEmployees,
             'people',
             '#2196F3',
             handleViewEmployees
           )}
           {renderStatCard(
-            'Present today',
+            'Present Today',
             todayStats.present || 0,
             'checkmark-circle',
             '#4CAF50',
             handleViewDailyAttendance
           )}
           {renderStatCard(
-            'Absent today',
+            'Absent Today',
             todayStats.absent || 0,
             'close-circle',
             '#F44336',
             handleViewDailyAttendance
           )}
           {renderStatCard(
-            'Attendance rate',
+            'Attendance Rate',
             `${todayStats.attendanceRate || 0}%`,
             'stats-chart',
-            '#FF9800',
-            handleViewDailyAttendance
+            '#FF9800'
           )}
         </ScrollView>
 
-        {/* Today's breakdown grid */}
+        {/* Today's Status Breakdown */}
         <View style={styles.section}>
           <View style={styles.sectionHeaderRow}>
-            <Text style={styles.sectionTitle}>Today's breakdown</Text>
-            <Text style={styles.sectionHint}>Live attendance status</Text>
+            <Text style={styles.sectionTitle}>Today's Breakdown</Text>
+            <TouchableOpacity onPress={handleViewDailyAttendance}>
+              <Text style={styles.sectionLink}>View All</Text>
+            </TouchableOpacity>
           </View>
           <View style={styles.statusGrid}>
             {renderStatusCard(
@@ -225,7 +287,13 @@ const AdminDashboard = ({ navigation }) => {
               '#FF9800'
             )}
             {renderStatusCard(
-              'Not marked',
+              'Half Day',
+              todayStats.halfDay || 0,
+              totalEmployees,
+              '#9C27B0'
+            )}
+            {renderStatusCard(
+              'Not Marked',
               todayStats.notMarked || 0,
               totalEmployees,
               '#9E9E9E'
@@ -233,110 +301,65 @@ const AdminDashboard = ({ navigation }) => {
           </View>
         </View>
 
-        {/* Monthly summary */}
+        {/* Monthly Statistics */}
         <View style={styles.section}>
           <View style={styles.sectionHeaderRow}>
-            <Text style={styles.sectionTitle}>This month</Text>
+            <Text style={styles.sectionTitle}>This Month</Text>
             <TouchableOpacity onPress={handleViewMonthlyReport}>
-              <Text style={styles.viewMoreLink}>View details</Text>
+              <Text style={styles.sectionLink}>View Report</Text>
             </TouchableOpacity>
           </View>
           <View style={styles.monthlyCard}>
             <View style={styles.monthlyRow}>
               <View style={styles.monthlyItem}>
-                <Text style={styles.monthlyLabel}>Total marked</Text>
-                <Text style={styles.monthlyValue}>
-                  {monthlyStats.totalMarked || 0}
-                </Text>
-              </View>
-              <View style={styles.monthlyDivider} />
-              <View style={styles.monthlyItem}>
+                <Ionicons name="checkmark-circle" size={20} color="#4CAF50" />
                 <Text style={styles.monthlyLabel}>Present</Text>
-                <Text style={[styles.monthlyValue, { color: '#4CAF50' }]}>
-                  {monthlyStats.present || 0}
-                </Text>
+                <Text style={styles.monthlyValue}>{monthlyStats.present || 0}</Text>
               </View>
-            </View>
-            <View style={styles.monthlyDividerHorizontal} />
-            <View style={styles.monthlyRow}>
               <View style={styles.monthlyItem}>
+                <Ionicons name="close-circle" size={20} color="#F44336" />
                 <Text style={styles.monthlyLabel}>Absent</Text>
-                <Text style={[styles.monthlyValue, { color: '#F44336' }]}>
-                  {monthlyStats.absent || 0}
-                </Text>
+                <Text style={styles.monthlyValue}>{monthlyStats.absent || 0}</Text>
               </View>
-              <View style={styles.monthlyDivider} />
               <View style={styles.monthlyItem}>
+                <Ionicons name="time" size={20} color="#FF9800" />
                 <Text style={styles.monthlyLabel}>Late</Text>
-                <Text style={[styles.monthlyValue, { color: '#FF9800' }]}>
-                  {monthlyStats.late || 0}
-                </Text>
+                <Text style={styles.monthlyValue}>{monthlyStats.late || 0}</Text>
+              </View>
+              <View style={styles.monthlyItem}>
+                <Ionicons name="sunny" size={20} color="#9C27B0" />
+                <Text style={styles.monthlyLabel}>Half Day</Text>
+                <Text style={styles.monthlyValue}>{monthlyStats.halfDay || 0}</Text>
               </View>
             </View>
           </View>
         </View>
 
-        {/* Department-wise breakdown */}
-        {stats.departments && stats.departments.length > 0 && (
+        {/* Department-wise Statistics */}
+        {departmentStats && departmentStats.length > 0 && (
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Department overview</Text>
-            {stats.departments.map((dept, index) => (
-              <View style={styles.deptCard} key={index}>
-                <View style={styles.deptHeader}>
-                  <View style={styles.deptIconWrap}>
-                    <Ionicons name="briefcase-outline" size={18} color="#2196F3" />
-                  </View>
-                  <Text style={styles.deptName}>{dept.department}</Text>
-                </View>
-                <View style={styles.deptStats}>
-                  <View style={styles.deptStatItem}>
-                    <Text style={styles.deptStatLabel}>Employees</Text>
-                    <Text style={styles.deptStatValue}>{dept.employees}</Text>
-                  </View>
-                  <View style={styles.deptStatItem}>
-                    <Text style={styles.deptStatLabel}>Present today</Text>
-                    <Text style={[styles.deptStatValue, { color: '#4CAF50' }]}>
-                      {dept.presentToday}
-                    </Text>
-                  </View>
-                  <View style={styles.deptStatItem}>
-                    <Text style={styles.deptStatLabel}>Attendance</Text>
-                    <Text style={[styles.deptStatValue, { color: '#2196F3' }]}>
-                      {dept.attendanceRate}%
-                    </Text>
-                  </View>
-                </View>
-              </View>
-            ))}
+            <View style={styles.sectionHeaderRow}>
+              <Text style={styles.sectionTitle}>Departments</Text>
+              <Text style={styles.sectionHint}>{departmentStats.length} total</Text>
+            </View>
+            {departmentStats.map(renderDepartmentCard)}
           </View>
         )}
 
-        {/* Quick actions */}
+        {/* Quick Actions */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Quick actions</Text>
+          <Text style={styles.sectionTitle}>Quick Actions</Text>
           <View style={styles.actionRow}>
             <TouchableOpacity
               style={styles.actionCard}
               onPress={handleMarkAttendance}
               activeOpacity={0.9}
             >
-              <View style={styles.actionIconWrap}>
-                <Ionicons name="finger-print-outline" size={22} color="#2196F3" />
+              <View style={[styles.actionIconWrap, { backgroundColor: '#E3F2FD' }]}>
+                <Ionicons name="finger-print" size={24} color="#2196F3" />
               </View>
-              <Text style={styles.actionTitle}>Mark attendance</Text>
-              <Text style={styles.actionSubtitle}>Scan fingerprint</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.actionCard}
-              onPress={handleViewDailyAttendance}
-              activeOpacity={0.9}
-            >
-              <View style={styles.actionIconWrap}>
-                <Ionicons name="calendar-outline" size={22} color="#2196F3" />
-              </View>
-              <Text style={styles.actionTitle}>Daily attendance</Text>
-              <Text style={styles.actionSubtitle}>View today's records</Text>
+              <Text style={styles.actionTitle}>Mark</Text>
+              <Text style={styles.actionSubtitle}>Attendance</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
@@ -344,11 +367,23 @@ const AdminDashboard = ({ navigation }) => {
               onPress={handleViewEmployees}
               activeOpacity={0.9}
             >
-              <View style={styles.actionIconWrap}>
-                <Ionicons name="people-outline" size={22} color="#2196F3" />
+              <View style={[styles.actionIconWrap, { backgroundColor: '#E8F5E9' }]}>
+                <Ionicons name="people" size={24} color="#4CAF50" />
               </View>
-              <Text style={styles.actionTitle}>Manage employees</Text>
-              <Text style={styles.actionSubtitle}>Add or edit employees</Text>
+              <Text style={styles.actionTitle}>View</Text>
+              <Text style={styles.actionSubtitle}>Employees</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.actionCard}
+              onPress={handleViewDailyAttendance}
+              activeOpacity={0.9}
+            >
+              <View style={[styles.actionIconWrap, { backgroundColor: '#FFF3E0' }]}>
+                <Ionicons name="calendar" size={24} color="#FF9800" />
+              </View>
+              <Text style={styles.actionTitle}>Daily</Text>
+              <Text style={styles.actionSubtitle}>Records</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
@@ -356,53 +391,84 @@ const AdminDashboard = ({ navigation }) => {
               onPress={handleViewMonthlyReport}
               activeOpacity={0.9}
             >
-              <View style={styles.actionIconWrap}>
-                <Ionicons name="document-text-outline" size={22} color="#2196F3" />
+              <View style={[styles.actionIconWrap, { backgroundColor: '#F3E5F5' }]}>
+                <Ionicons name="analytics" size={24} color="#9C27B0" />
               </View>
-              <Text style={styles.actionTitle}>Monthly report</Text>
-              <Text style={styles.actionSubtitle}>View detailed report</Text>
+              <Text style={styles.actionTitle}>Monthly</Text>
+              <Text style={styles.actionSubtitle}>Report</Text>
             </TouchableOpacity>
           </View>
         </View>
 
-        <View style={{ height: 16 }} />
+        {/* Recent Activity */}
+        {dailyAttendance && dailyAttendance.length > 0 && (
+          <View style={styles.section}>
+            <View style={styles.sectionHeaderRow}>
+              <Text style={styles.sectionTitle}>Recent Activity</Text>
+              <TouchableOpacity onPress={handleViewDailyAttendance}>
+                <Text style={styles.sectionLink}>View All</Text>
+              </TouchableOpacity>
+            </View>
+            {dailyAttendance.slice(0, 5).map((record, index) => (
+              <View key={index} style={styles.activityCard}>
+                <View style={styles.activityLeft}>
+                  <View style={[
+                    styles.activityStatus,
+                    { backgroundColor: record.attendance?.status === 'PRESENT' ? '#4CAF50' : '#F44336' }
+                  ]} />
+                  <View style={styles.activityInfo}>
+                    <Text style={styles.activityName}>{record.employeeName}</Text>
+                    <Text style={styles.activityDetail}>
+                      {record.department} • {record.jobRole}
+                    </Text>
+                  </View>
+                </View>
+                <Text style={[
+                  styles.activityStatusText,
+                  { color: record.attendance?.status === 'PRESENT' ? '#4CAF50' : '#9E9E9E' }
+                ]}>
+                  {record.attendance?.status || 'NOT_MARKED'}
+                </Text>
+              </View>
+            ))}
+          </View>
+        )}
+
+        <View style={{ height: 40 }} />
       </ScrollView>
     </View>
   );
 };
 
-const CARD_WIDTH = width * 0.78;
-
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: '#F3F5F9',
+    backgroundColor: '#F5F7FA',
   },
   accentCircle: {
     position: 'absolute',
-    top: -80,
-    left: -40,
-    width: 220,
-    height: 220,
-    borderRadius: 110,
-    backgroundColor: '#BBDEFB',
+    top: -100,
+    right: -100,
+    width: 300,
+    height: 300,
+    borderRadius: 150,
+    backgroundColor: '#2196F3',
+    opacity: 0.05,
   },
   container: {
     flex: 1,
   },
   scrollContent: {
-    paddingTop: 10,
-    paddingBottom: 16,
+    paddingBottom: 20,
   },
-
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#F3F5F9',
+    backgroundColor: '#F5F7FA',
   },
   loadingText: {
-    marginTop: 16,
+    marginTop: 12,
     fontSize: 16,
     color: '#666',
   },
@@ -410,95 +476,91 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#F3F5F9',
-    padding: 32,
+    backgroundColor: '#F5F7FA',
+    padding: 20,
   },
   errorText: {
-    fontSize: 18,
-    color: '#666',
     marginTop: 16,
-    marginBottom: 24,
+    fontSize: 18,
+    color: '#333',
+    fontWeight: '600',
   },
   retryButton: {
-    backgroundColor: '#2196F3',
-    paddingHorizontal: 32,
+    marginTop: 20,
+    paddingHorizontal: 24,
     paddingVertical: 12,
-    borderRadius: 12,
+    backgroundColor: '#2196F3',
+    borderRadius: 8,
   },
   retryButtonText: {
-    color: '#FFFFFF',
+    color: '#FFF',
     fontSize: 16,
     fontWeight: '600',
   },
-
-  // Welcome card
   welcomeCard: {
-    backgroundColor: '#2196F3',
-    marginHorizontal: 16,
-    marginBottom: 12,
-    padding: 16,
+    margin: 16,
+    marginTop: 20,
+    padding: 20,
+    backgroundColor: '#FFFFFF',
     borderRadius: 16,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    shadowColor: '#2196F3',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
     shadowRadius: 8,
-    elevation: 6,
+    elevation: 3,
   },
   welcomeLeft: {
     flex: 1,
   },
   welcomeTitle: {
-    fontSize: 20,
+    fontSize: 24,
     fontWeight: '700',
-    color: '#FFFFFF',
+    color: '#1A1A1A',
     marginBottom: 4,
   },
   welcomeSubtitle: {
-    fontSize: 13,
-    color: '#E3F2FD',
+    fontSize: 14,
+    color: '#666',
   },
   welcomeBadge: {
-    backgroundColor: 'rgba(255,255,255,0.2)',
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 999,
+    backgroundColor: '#2196F3',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 20,
+    gap: 6,
   },
   welcomeBadgeText: {
     color: '#FFFFFF',
     fontSize: 12,
     fontWeight: '600',
-    marginLeft: 4,
   },
-
-  // Horizontal metrics
   metricsStrip: {
-    paddingHorizontal: 12,
-    marginBottom: 16,
+    paddingHorizontal: 16,
+    gap: 12,
   },
   statCard: {
+    width: width * 0.7,
     backgroundColor: '#FFFFFF',
-    borderRadius: 14,
-    padding: 14,
-    marginHorizontal: 4,
-    width: CARD_WIDTH,
+    borderRadius: 16,
+    padding: 16,
     flexDirection: 'row',
     alignItems: 'center',
     borderWidth: 1,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
+    shadowOpacity: 0.05,
     shadowRadius: 4,
     elevation: 2,
   },
   statIconWrap: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: 48,
+    height: 48,
+    borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 12,
@@ -507,219 +569,251 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   statValue: {
-    fontSize: 22,
+    fontSize: 24,
     fontWeight: '700',
-    color: '#263238',
+    color: '#1A1A1A',
+    marginBottom: 2,
   },
   statTitle: {
-    fontSize: 12,
-    color: '#78909C',
-    marginTop: 2,
+    fontSize: 13,
+    color: '#666',
   },
-
-  // Section
   section: {
-    marginHorizontal: 16,
-    marginBottom: 16,
+    marginTop: 24,
+    paddingHorizontal: 16,
   },
   sectionHeaderRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 8,
+    marginBottom: 12,
   },
   sectionTitle: {
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: '700',
-    color: '#263238',
+    color: '#1A1A1A',
   },
-  sectionHint: {
-    fontSize: 11,
-    color: '#90A4AE',
-  },
-  viewMoreLink: {
-    fontSize: 13,
+  sectionLink: {
+    fontSize: 14,
     color: '#2196F3',
     fontWeight: '600',
   },
-
-  // Status grid
+  sectionHint: {
+    fontSize: 13,
+    color: '#999',
+  },
   statusGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    marginHorizontal: -6,
+    gap: 12,
   },
   statusCard: {
+    width: (width - 48) / 2,
     backgroundColor: '#FFFFFF',
-    borderRadius: 14,
-    padding: 12,
-    margin: 6,
-    flexBasis: (width - 16 * 2 - 6 * 4) / 2,
-    flexGrow: 1,
+    borderRadius: 12,
+    padding: 14,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.05,
     shadowRadius: 3,
-    elevation: 1,
+    elevation: 2,
   },
   statusTopRow: {
     flexDirection: 'row',
     alignItems: 'center',
     marginBottom: 8,
   },
-  statusDotLarge: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    marginRight: 6,
+  statusDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    marginRight: 8,
   },
   statusLabel: {
-    fontSize: 12,
-    color: '#607D8B',
-    fontWeight: '600',
+    fontSize: 13,
+    color: '#666',
+    fontWeight: '500',
   },
   statusBottomRow: {
     flexDirection: 'row',
-    alignItems: 'baseline',
     justifyContent: 'space-between',
+    alignItems: 'flex-end',
   },
   statusCount: {
-    fontSize: 20,
+    fontSize: 22,
     fontWeight: '700',
-    color: '#263238',
+    color: '#1A1A1A',
   },
   statusPercentage: {
-    fontSize: 12,
+    fontSize: 14,
     fontWeight: '600',
   },
-
-  // Monthly card
   monthlyCard: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 14,
+    borderRadius: 12,
     padding: 16,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
+    shadowOpacity: 0.05,
     shadowRadius: 4,
     elevation: 2,
   },
   monthlyRow: {
     flexDirection: 'row',
-    justifyContent: 'space-around',
+    justifyContent: 'space-between',
   },
   monthlyItem: {
-    flex: 1,
     alignItems: 'center',
+    gap: 6,
   },
   monthlyLabel: {
-    fontSize: 12,
-    color: '#78909C',
-    marginBottom: 4,
+    fontSize: 11,
+    color: '#666',
+    marginTop: 2,
   },
   monthlyValue: {
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: '700',
-    color: '#263238',
+    color: '#1A1A1A',
   },
-  monthlyDivider: {
-    width: 1,
-    backgroundColor: '#E0E0E0',
-    marginHorizontal: 8,
-  },
-  monthlyDividerHorizontal: {
-    height: 1,
-    backgroundColor: '#E0E0E0',
-    marginVertical: 12,
-  },
-
-  // Department cards
-  deptCard: {
+  departmentCard: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 14,
-    padding: 14,
-    marginTop: 8,
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 12,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.06,
+    shadowOpacity: 0.05,
     shadowRadius: 3,
-    elevation: 1,
+    elevation: 2,
   },
   deptHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 10,
+    marginBottom: 12,
   },
   deptIconWrap: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+    width: 40,
+    height: 40,
+    borderRadius: 10,
     backgroundColor: '#E3F2FD',
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: 8,
+    marginRight: 12,
+  },
+  deptInfo: {
+    flex: 1,
   },
   deptName: {
-    fontSize: 15,
+    fontSize: 16,
     fontWeight: '600',
-    color: '#263238',
+    color: '#1A1A1A',
+    marginBottom: 2,
+  },
+  deptEmployees: {
+    fontSize: 13,
+    color: '#666',
   },
   deptStats: {
     flexDirection: 'row',
-    justifyContent: 'space-around',
+    justifyContent: 'space-between',
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#F0F0F0',
   },
   deptStatItem: {
     alignItems: 'center',
   },
   deptStatLabel: {
     fontSize: 11,
-    color: '#78909C',
+    color: '#666',
     marginBottom: 4,
   },
   deptStatValue: {
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: '700',
-    color: '#263238',
   },
-
-  // Quick actions
+  deptChevron: {
+    position: 'absolute',
+    right: 16,
+    top: 20,
+  },
   actionRow: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
-    marginHorizontal: -6,
-    marginTop: 8,
+    justifyContent: 'space-between',
+    gap: 12,
   },
   actionCard: {
+    flex: 1,
     backgroundColor: '#FFFFFF',
-    borderRadius: 14,
-    padding: 14,
-    margin: 6,
-    flexBasis: (width - 16 * 2 - 6 * 4) / 2,
-    flexGrow: 1,
+    borderRadius: 12,
+    padding: 16,
+    alignItems: 'center',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.06,
+    shadowOpacity: 0.05,
     shadowRadius: 3,
-    elevation: 1,
+    elevation: 2,
   },
   actionIconWrap: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: '#E3F2FD',
+    width: 48,
+    height: 48,
+    borderRadius: 24,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 8,
   },
   actionTitle: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '600',
-    color: '#263238',
+    color: '#1A1A1A',
+    marginBottom: 2,
   },
   actionSubtitle: {
     fontSize: 11,
-    color: '#78909C',
-    marginTop: 2,
+    color: '#666',
+  },
+  activityCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 10,
+    padding: 14,
+    marginBottom: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.03,
+    shadowRadius: 2,
+    elevation: 1,
+  },
+  activityLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  activityStatus: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    marginRight: 12,
+  },
+  activityInfo: {
+    flex: 1,
+  },
+  activityName: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#1A1A1A',
+    marginBottom: 2,
+  },
+  activityDetail: {
+    fontSize: 12,
+    color: '#666',
+  },
+  activityStatusText: {
+    fontSize: 11,
+    fontWeight: '600',
   },
 });
 

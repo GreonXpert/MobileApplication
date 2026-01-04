@@ -1,4 +1,4 @@
-// src/navigation/AppNavigator.js - UPDATED HEADER DESIGN
+// src/navigation/AppNavigator.js - UPDATED WITH NEW SCREENS
 import React from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
@@ -14,6 +14,10 @@ import AttendanceHistoryScreen from '../screens/AttendanceHistoryScreen';
 import DailyAttendanceScreen from '../screens/DailyAttendanceScreen';
 import EmployeeDetailScreen from '../screens/EmployeeDetailScreen';
 import EmployeeListScreen from '../screens/EmployeeListScreen';
+
+// 👇 NEW SCREENS - ADD THESE IMPORTS
+import MonthlyReport from '../screens/MonthlyReport';
+import DepartmentDetails from '../screens/DepartmentDetails';
 
 // Auth context
 import { useAuth } from '../context/AuthContext';
@@ -71,7 +75,7 @@ const MainStack = () => {
         }}
       />
 
-      {/* Modals / pushed screens */}
+      {/* Employee Management */}
       <Stack.Screen
         name="EmployeeCreate"
         component={EmployeeCreateScreen}
@@ -84,7 +88,7 @@ const MainStack = () => {
         name="EmployeeListScreen"
         component={EmployeeListScreen}
         options={{
-          title: 'EmployeeListScreen',
+          title: 'Employees',
         }}
       />
       <Stack.Screen
@@ -94,6 +98,8 @@ const MainStack = () => {
           title: 'Employee profile',
         }}
       />
+
+      {/* Attendance Management */}
       <Stack.Screen
         name="AttendanceCalendar"
         component={AttendanceCalendarScreen}
@@ -119,7 +125,23 @@ const MainStack = () => {
         name="DailyAttendance"
         component={DailyAttendanceScreen}
         options={{
-          title: 'Today\'s attendance',
+          title: "Today's attendance",
+        }}
+      />
+
+      {/* 👇 NEW SCREENS - ADD THESE */}
+      <Stack.Screen
+        name="MonthlyReport"
+        component={MonthlyReport}
+        options={{
+          headerShown: false, // MonthlyReport has its own header
+        }}
+      />
+      <Stack.Screen
+        name="DepartmentDetails"
+        component={DepartmentDetails}
+        options={{
+          headerShown: false, // DepartmentDetails has its own header
         }}
       />
     </Stack.Navigator>

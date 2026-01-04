@@ -1,25 +1,12 @@
 // src/services/api.js
-// UPDATED with fingerprint enrollment API
-
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Alert } from 'react-native';
 
-// ============================================
-// API CONFIGURATION
-// ============================================
+// Update this to your backend URL
+const API_BASE_URL = 'http://192.168.20.3:5000/api'; // Replace with your actual IP
 
-// Use your backend URL here
-// For local development: http://YOUR_LOCAL_IP:5000/api
-// For production: https://your-domain.com/api
-
-const API_BASE_URL = __DEV__
-  ? 'http://192.168.20.3:5000/api' // ⚠️ CHANGE THIS to your local IP
-  : 'https://your-production-api.com/api';
-
-// ============================================
-// AXIOS INSTANCE
-// ============================================
-
+// Create axios instance
 const api = axios.create({
   baseURL: API_BASE_URL,
   timeout: 30000,
@@ -28,44 +15,34 @@ const api = axios.create({
   },
 });
 
-// ============================================
-// REQUEST INTERCEPTOR (Add JWT Token)
-// ============================================
-
+// Request interceptor - Add token to all requests
 api.interceptors.request.use(
   async (config) => {
-    const token = await AsyncStorage.getItem('token');
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
+    try {
+      const token = await AsyncStorage.getItem('token');
+      if (token) {
+        config.headers.Authorization = `Bearer ${token}`;
+      }
+    } catch (error) {
+      console.error('Error getting token:', error);
     }
-    console.log(`📤 API Request: ${config.method.toUpperCase()} ${config.url}`);
     return config;
   },
   (error) => {
-    console.error('❌ Request Error:', error);
     return Promise.reject(error);
   }
 );
 
-// ============================================
-// RESPONSE INTERCEPTOR
-// ============================================
-
+// Response interceptor - Handle errors globally
 api.interceptors.response.use(
-  (response) => {
-    console.log(`✅ API Response: ${response.config.url} - ${response.status}`);
-    return response;
-  },
+  (response) => response,
   async (error) => {
-    console.error(`❌ API Error: ${error.config?.url}`, error.response?.data || error.message);
-
-    // Handle 401 Unauthorized (token expired or invalid)
     if (error.response?.status === 401) {
+      // Token expired or invalid
       await AsyncStorage.removeItem('token');
       await AsyncStorage.removeItem('user');
-      // Navigation to login should be handled by the app
+      Alert.alert('Session Expired', 'Please login again');
     }
-
     return Promise.reject(error);
   }
 );
@@ -75,12 +52,12 @@ api.interceptors.response.use(
 // ============================================
 
 export const authAPI = {
-  login: async (credentials) => {
+  login: async (username, password) => {
     try {
-      const response = await api.post('/auth/login', credentials);
+      const response = await api.post('/auth/login', { username, password });
       return response.data;
     } catch (error) {
-      console.error('Login API error:', error);
+      console.error('Login error:', error);
       throw error;
     }
   },
@@ -97,33 +74,186 @@ export const authAPI = {
 };
 
 // ============================================
+// DASHBOARD API (ADMIN)
+// ============================================
+
+export const dashboardAPI = {
+  /**
+   * Get comprehensive dashboard statistics
+   */
+  getStats: async () => {
+    try {
+      const response = await api.get('/admin/dashboard/stats');
+      return response.data;
+    } catch (error) {
+      console.error('Dashboard stats error:', error);
+      throw error;
+    }
+  },
+
+  /**
+   * Get daily attendance with all employee details
+   * @param {string} date - Optional date in ISO format (defaults to today)
+   */
+  getDailyAttendance: async (date = null) => {
+    try {
+      const url = date
+        ? `/admin/dashboard/daily-attendance?date=${date}`
+        : '/admin/dashboard/daily-attendance';
+      const response = await api.get(url);
+      return response.data;
+    } catch (error) {
+      console.error('Daily attendance error:', error);
+      throw error;
+    }
+  },
+
+  /**
+   * Get employee attendance history with statistics
+   * @param {string} employeeId - Employee ID
+   * @param {object} options - Optional filters
+   */
+  getEmployeeHistory: async (employeeId, options = {}) => {
+    try {
+      const params = new URLSearchParams();
+      if (options.startDate) params.append('startDate', options.startDate);
+      if (options.endDate) params.append('endDate', options.endDate);
+      if (options.limit) params.append('limit', options.limit);
+
+      const url = `/admin/dashboard/employee-history/${employeeId}${
+        params.toString() ? `?${params.toString()}` : ''
+      }`;
+      const response = await api.get(url);
+      return response.data;
+    } catch (error) {
+      console.error('Employee history error:', error);
+      throw error;
+    }
+  },
+
+  /**
+   * Get monthly attendance report
+   * @param {number} month - Month (1-12)
+   * @param {number} year - Year
+   */
+  getMonthlyReport: async (month = null, year = null) => {
+    try {
+      const params = new URLSearchParams();
+      if (month) params.append('month', month);
+      if (year) params.append('year', year);
+
+      const url = `/admin/dashboard/monthly-report${
+        params.toString() ? `?${params.toString()}` : ''
+      }`;
+      const response = await api.get(url);
+      return response.data;
+    } catch (error) {
+      console.error('Monthly report error:', error);
+      throw error;
+    }
+  },
+
+  /**
+   * Get department-wise statistics
+   * @param {string} date - Optional date in ISO format (defaults to today)
+   */
+  getDepartmentWiseStats: async (date = null) => {
+    try {
+      const url = date
+        ? `/admin/dashboard/department-wise?date=${date}`
+        : '/admin/dashboard/department-wise';
+      const response = await api.get(url);
+      return response.data;
+    } catch (error) {
+      console.error('Department-wise stats error:', error);
+      throw error;
+    }
+  },
+};
+
+// ============================================
 // EMPLOYEE API
 // ============================================
 
 export const employeeAPI = {
-  getAll: async () => {
-    const response = await api.get('/admin/employees');
-    return response.data;
+  /**
+   * Get all employees with optional filters
+   * @param {object} filters - Optional filters
+   */
+  getAll: async (filters = {}) => {
+    try {
+      const params = new URLSearchParams();
+      if (filters.department) params.append('department', filters.department);
+      if (filters.search) params.append('search', filters.search);
+      if (filters.page) params.append('page', filters.page);
+      if (filters.limit) params.append('limit', filters.limit);
+
+      const url = `/admin/employees${
+        params.toString() ? `?${params.toString()}` : ''
+      }`;
+      const response = await api.get(url);
+      return response.data;
+    } catch (error) {
+      console.error('Get employees error:', error);
+      throw error;
+    }
   },
 
+  /**
+   * Get single employee with statistics
+   * @param {string} id - Employee MongoDB ID
+   */
   getById: async (id) => {
-    const response = await api.get(`/admin/employees/${id}`);
-    return response.data;
+    try {
+      const response = await api.get(`/admin/employees/${id}`);
+      return response.data;
+    } catch (error) {
+      console.error('Get employee error:', error);
+      throw error;
+    }
   },
 
+  /**
+   * Create new employee
+   * @param {object} employeeData - Employee data
+   */
   create: async (employeeData) => {
-    const response = await api.post('/admin/employees', employeeData);
-    return response.data;
+    try {
+      const response = await api.post('/admin/employees', employeeData);
+      return response.data;
+    } catch (error) {
+      console.error('Create employee error:', error);
+      throw error;
+    }
   },
 
+  /**
+   * Update employee
+   * @param {string} id - Employee MongoDB ID
+   * @param {object} employeeData - Updated employee data
+   */
   update: async (id, employeeData) => {
-    const response = await api.put(`/admin/employees/${id}`, employeeData);
-    return response.data;
+    try {
+      const response = await api.put(`/admin/employees/${id}`, employeeData);
+      return response.data;
+    } catch (error) {
+      console.error('Update employee error:', error);
+      throw error;
+    }
   },
 
+  /**
+   * Delete employee
+   * @param {string} id - Employee MongoDB ID
+   */
   delete: async (id) => {
-    const response = await api.delete(`/admin/employees/${id}`);
-    return response.data;
+    try {
+      const response = await api.delete(`/admin/employees/${id}`);
+      return response.data;
+    } catch (error) {
+      console.error('Delete employee error:', error);
+      throw error;
+    }
   },
 };
 
@@ -132,147 +262,206 @@ export const employeeAPI = {
 // ============================================
 
 export const attendanceAPI = {
+  /**
+   * Mark attendance for an employee
+   * @param {object} attendanceData - Attendance data
+   */
   mark: async (attendanceData) => {
-    const response = await api.post('/admin/attendance/mark', attendanceData);
-    return response.data;
+    try {
+      const response = await api.post('/admin/attendance/mark', attendanceData);
+      return response.data;
+    } catch (error) {
+      console.error('Mark attendance error:', error);
+      throw error;
+    }
   },
 
-  getHistory: async (employeeId, startDate, endDate) => {
-    const params = new URLSearchParams();
-    if (startDate) params.append('startDate', startDate);
-    if (endDate) params.append('endDate', endDate);
+  /**
+   * Get attendance history for an employee
+   * @param {string} employeeId - Employee ID
+   * @param {string} startDate - Start date (optional)
+   * @param {string} endDate - End date (optional)
+   * @param {number} limit - Limit (optional)
+   */
+  getHistory: async (employeeId, startDate = null, endDate = null, limit = 100) => {
+    try {
+      const params = new URLSearchParams();
+      if (startDate) params.append('startDate', startDate);
+      if (endDate) params.append('endDate', endDate);
+      if (limit) params.append('limit', limit);
 
-    const response = await api.get(`/admin/attendance/history/${employeeId}?${params.toString()}`);
-    return response.data;
+      const url = `/admin/attendance/history/${employeeId}${
+        params.toString() ? `?${params.toString()}` : ''
+      }`;
+      const response = await api.get(url);
+      return response.data;
+    } catch (error) {
+      console.error('Get attendance history error:', error);
+      throw error;
+    }
   },
 
-  getAll: async (filters = {}) => {
-    const params = new URLSearchParams();
-    Object.keys(filters).forEach((key) => {
-      if (filters[key]) params.append(key, filters[key]);
-    });
+  /**
+   * Update attendance record
+   * @param {string} id - Attendance record ID
+   * @param {string} status - New status (PRESENT, ABSENT, LATE, HALF_DAY)
+   */
+  update: async (id, status) => {
+    try {
+      const response = await api.put(`/admin/attendance/${id}`, { status });
+      return response.data;
+    } catch (error) {
+      console.error('Update attendance error:', error);
+      throw error;
+    }
+  },
 
-    const response = await api.get(`/superadmin/attendance?${params.toString()}`);
-    return response.data;
+  /**
+   * Delete attendance record
+   * @param {string} id - Attendance record ID
+   */
+  delete: async (id) => {
+    try {
+      const response = await api.delete(`/admin/attendance/${id}`);
+      return response.data;
+    } catch (error) {
+      console.error('Delete attendance error:', error);
+      throw error;
+    }
   },
 };
 
 // ============================================
-// ✅ FINGERPRINT API (NEW)
+// SUPERADMIN DASHBOARD API
+// ============================================
+
+export const superadminDashboardAPI = {
+  /**
+   * Get superadmin overview
+   */
+  getOverview: async () => {
+    try {
+      const response = await api.get('/superadmin/dashboard/overview');
+      return response.data;
+    } catch (error) {
+      console.error('Superadmin overview error:', error);
+      throw error;
+    }
+  },
+
+  /**
+   * Get system alerts
+   */
+  getAlerts: async () => {
+    try {
+      const response = await api.get('/superadmin/dashboard/alerts');
+      return response.data;
+    } catch (error) {
+      console.error('System alerts error:', error);
+      throw error;
+    }
+  },
+
+  /**
+   * Get attendance feed
+   * @param {object} filters - Optional filters
+   */
+  getAttendanceFeed: async (filters = {}) => {
+    try {
+      const params = new URLSearchParams();
+      if (filters.startDate) params.append('startDate', filters.startDate);
+      if (filters.endDate) params.append('endDate', filters.endDate);
+      if (filters.employeeId) params.append('employeeId', filters.employeeId);
+      if (filters.department) params.append('department', filters.department);
+      if (filters.status) params.append('status', filters.status);
+      if (filters.page) params.append('page', filters.page);
+      if (filters.limit) params.append('limit', filters.limit);
+
+      const url = `/superadmin/attendance${
+        params.toString() ? `?${params.toString()}` : ''
+      }`;
+      const response = await api.get(url);
+      return response.data;
+    } catch (error) {
+      console.error('Attendance feed error:', error);
+      throw error;
+    }
+  },
+
+  /**
+   * Get statistics
+   * @param {string} startDate - Start date
+   * @param {string} endDate - End date
+   */
+  getStatistics: async (startDate, endDate) => {
+    try {
+      const params = new URLSearchParams();
+      if (startDate) params.append('startDate', startDate);
+      if (endDate) params.append('endDate', endDate);
+
+      const url = `/superadmin/statistics${
+        params.toString() ? `?${params.toString()}` : ''
+      }`;
+      const response = await api.get(url);
+      return response.data;
+    } catch (error) {
+      console.error('Statistics error:', error);
+      throw error;
+    }
+  },
+
+  /**
+   * Get all employees (superadmin)
+   */
+  getEmployees: async () => {
+    try {
+      const response = await api.get('/superadmin/employees');
+      return response.data;
+    } catch (error) {
+      console.error('Get employees error:', error);
+      throw error;
+    }
+  },
+};
+
+// ============================================
+// FINGERPRINT API
 // ============================================
 
 export const fingerprintAPI = {
   /**
-   * Enroll a new fingerprint template
-   *
-   * @param {Object} data - Enrollment data
-   * @param {string} data.employeeId - Employee ID
-   * @param {string} data.templateBase64 - Base64-encoded template
-   * @param {string} data.format - Template format (ISO_19794_2, etc.)
-   * @param {number} data.fingerIndex - Finger index (0-9, optional)
-   * @param {string} data.fingerName - Finger name (optional)
-   * @param {number} data.quality - Quality score (0-100, optional)
-   * @param {Object} data.deviceInfo - Device information (optional)
-   * @returns {Promise<Object>} Enrollment result
+   * Verify fingerprint against database
+   * @param {string} fingerprintTemplate - Base64 fingerprint template
    */
-  enroll: async (data) => {
+  verify: async (fingerprintTemplate) => {
+    try {
+      const response = await api.post('/fingerprints/verify', {
+        fingerprintTemplate,
+      });
+      return response.data;
+    } catch (error) {
+      console.error('Fingerprint verify error:', error);
+      throw error;
+    }
+  },
+
+  /**
+   * Enroll new fingerprint for employee
+   * @param {string} employeeId - Employee ID
+   * @param {string} fingerprintTemplate - Base64 fingerprint template
+   */
+  enroll: async (employeeId, fingerprintTemplate) => {
     try {
       const response = await api.post('/fingerprints/enroll', {
-        employeeId: data.employeeId,
-        templateBase64: data.templateBase64,
-        format: data.format || 'ISO_19794_2',
-        fingerIndex: data.fingerIndex,
-        fingerName: data.fingerName,
-        quality: data.quality,
-        deviceInfo: data.deviceInfo || {
-          vendor: 'Mantra',
-          model: 'MFS110',
-          rdServiceVersion: '1.4.1',
-        },
+        employeeId,
+        fingerprintTemplate,
       });
       return response.data;
     } catch (error) {
-      console.error('Fingerprint enrollment error:', error);
-      throw error;
-    }
-  },
-
-  /**
-   * Get all fingerprints for an employee
-   *
-   * @param {string} employeeId - Employee ID
-   * @returns {Promise<Object>} Fingerprint list
-   */
-  getByEmployeeId: async (employeeId) => {
-    try {
-      const response = await api.get(`/fingerprints/${employeeId}`);
-      return response.data;
-    } catch (error) {
-      console.error('Get fingerprints error:', error);
-      throw error;
-    }
-  },
-
-  /**
-   * Get decrypted template by fingerprint ID
-   * ⚠️ Use with caution - only for admin purposes
-   *
-   * @param {string} fingerprintId - Fingerprint document ID
-   * @returns {Promise<Object>} Template data
-   */
-  getTemplate: async (fingerprintId) => {
-    try {
-      const response = await api.get(`/fingerprints/template/${fingerprintId}`);
-      return response.data;
-    } catch (error) {
-      console.error('Get template error:', error);
-      throw error;
-    }
-  },
-
-  /**
-   * Delete (revoke) a fingerprint template
-   *
-   * @param {string} fingerprintId - Fingerprint document ID
-   * @param {string} reason - Revocation reason (optional)
-   * @returns {Promise<Object>} Deletion result
-   */
-  delete: async (fingerprintId, reason = '') => {
-    try {
-      const response = await api.delete(`/fingerprints/${fingerprintId}`, {
-        data: { reason },
-      });
-      return response.data;
-    } catch (error) {
-      console.error('Delete fingerprint error:', error);
-      throw error;
-    }
-  },
-
-  /**
-   * Get all fingerprints (superadmin only)
-   *
-   * @param {Object} filters - Query filters
-   * @returns {Promise<Object>} Fingerprint list with pagination
-   */
-  getAll: async (filters = {}) => {
-    try {
-      const params = new URLSearchParams();
-      if (filters.status) params.append('status', filters.status);
-      if (filters.limit) params.append('limit', filters.limit);
-      if (filters.page) params.append('page', filters.page);
-
-      const response = await api.get(`/fingerprints/list/all?${params.toString()}`);
-      return response.data;
-    } catch (error) {
-      console.error('Get all fingerprints error:', error);
+      console.error('Fingerprint enroll error:', error);
       throw error;
     }
   },
 };
-
-// ============================================
-// EXPORT DEFAULT
-// ============================================
 
 export default api;
