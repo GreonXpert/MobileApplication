@@ -186,6 +186,7 @@ const styles = StyleSheet.create({
   // Header
   headerCard: {
     backgroundColor: '#2196F3',
+    marginTop: Platform.OS === 'ios' ? 36: 8,
     borderRadius: 18,
     padding: 16,
     flexDirection: 'row',

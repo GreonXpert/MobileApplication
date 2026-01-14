@@ -1,4 +1,4 @@
-// src/context/AuthContext.js - FIXED VERSION WITH NULL SAFETY
+// src/context/AuthContext.js - FIXED VERSION
 import React, { createContext, useState, useContext, useEffect } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { authAPI } from '../services/api';
@@ -10,9 +10,6 @@ export const AuthProvider = ({ children }) => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
 
-  /**
-   * Check if user is already logged in on app start
-   */
   useEffect(() => {
     checkAuthStatus();
   }, []);
@@ -27,7 +24,6 @@ export const AuthProvider = ({ children }) => {
       console.log('🔍 Saved user:', savedUser);
 
       if (token && savedUser) {
-        // Verify token is still valid
         try {
           const response = await authAPI.verifyToken();
           console.log('✅ Token verification response:', response);
@@ -35,13 +31,11 @@ export const AuthProvider = ({ children }) => {
           if (response.success) {
             const userObj = JSON.parse(savedUser);
             
-            // ✅ Ensure role is properly set
             if (!userObj.role) {
               console.warn('⚠️ User object missing role, setting default');
               userObj.role = 'admin';
             }
             
-            // ✅ Ensure role is lowercase and trimmed
             userObj.role = String(userObj.role).toLowerCase().trim();
             
             console.log('✅ Setting user:', JSON.stringify(userObj, null, 2));
@@ -49,7 +43,6 @@ export const AuthProvider = ({ children }) => {
             setUser(userObj);
             setIsAuthenticated(true);
           } else {
-            // Token invalid, clear storage
             console.warn('⚠️ Token invalid, logging out');
             await logout();
           }
@@ -71,16 +64,16 @@ export const AuthProvider = ({ children }) => {
   const login = async (username, password) => {
     try {
       console.log('🔐 Attempting login...');
-      const response = await authAPI.login({ username, password });
+      
+      // ✅ FIXED: Pass as separate arguments, not as object
+      const response = await authAPI.login(username, password);
       
       console.log('📥 Login response:', JSON.stringify(response, null, 2));
 
       if (response.success && response.token) {
-        // Save token
         await AsyncStorage.setItem('token', response.token);
         console.log('✅ Token saved');
 
-        // ✅ Create user object with safe defaults and proper role formatting
         const userObj = {
           username: response.user?.username || username,
           role: response.user?.role 
@@ -93,7 +86,6 @@ export const AuthProvider = ({ children }) => {
 
         console.log('✅ Created user object:', JSON.stringify(userObj, null, 2));
 
-        // Save user data
         await AsyncStorage.setItem('user', JSON.stringify(userObj));
         console.log('✅ User data saved');
 
@@ -116,22 +108,7 @@ export const AuthProvider = ({ children }) => {
       };
     }
   };
-// When setting user after login, ensure all fields exist:
-const loginUser = async (token, userData) => {
-  await saveToken(token);
-  
-  // ✅ Ensure user object has all required fields
-  const normalizedUser = {
-    id: userData.id || userData._id,
-    username: userData.username || '',
-    role: userData.role || 'admin', // Important: always have a role
-    fullName: userData.fullName || '',
-    email: userData.email || '',
-  };
-  
-  await saveUserData(normalizedUser);
-  setUser(normalizedUser);
-};
+
   const logout = async () => {
     try {
       console.log('👋 Logging out...');

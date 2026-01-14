@@ -4,7 +4,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Alert } from 'react-native';
 
 // Update this to your backend URL
-const API_BASE_URL = 'http://192.168.20.3:5000/api'; // Replace with your actual IP
+const API_BASE_URL = 'http://192.168.1.4:5000/api'; // Replace with your actual IP
 
 // Create axios instance
 const api = axios.create({
@@ -51,16 +51,31 @@ api.interceptors.response.use(
 // AUTHENTICATION API
 // ============================================
 
+// src/services/api.js - Add logging to the login function
+
 export const authAPI = {
   login: async (username, password) => {
     try {
-      const response = await api.post('/auth/login', { username, password });
+      console.log('🔵 Login attempt:', { username, password: '***' });
+      console.log('🔵 API Base URL:', API_BASE_URL);
+      console.log('🔵 Full URL:', `${API_BASE_URL}/auth/login`);
+      
+      const payload = { username, password };
+      console.log('🔵 Request payload:', JSON.stringify(payload));
+      
+      const response = await api.post('/auth/login', payload);
+      
+      console.log('✅ Login successful:', response.data);
       return response.data;
     } catch (error) {
-      console.error('Login error:', error);
+      console.error('❌ Login error:', error);
+      console.error('❌ Error response:', error.response?.data);
+      console.error('❌ Error status:', error.response?.status);
+      console.error('❌ Error config:', error.config);
       throw error;
     }
   },
+
 
   verifyToken: async () => {
     try {
@@ -462,6 +477,36 @@ export const fingerprintAPI = {
       throw error;
     }
   },
+
+   /**
+   * Enroll a fingerprint for an employee
+   */
+  enrollFingerprint: async (employeeId, fingerprintData) => {
+    try {
+      const response = await api.post('/fingerprints/enroll', {
+        employeeId,
+        ...fingerprintData,
+      });
+      return response.data;
+    } catch (error) {
+      console.error('Enroll fingerprint error:', error);
+      throw error;
+    }
+  },
+
+  /**
+   * Get all fingerprints for an employee
+   */
+  getEmployeeFingerprints: async (employeeId) => {
+    try {
+      const response = await api.get(`/fingerprints/${employeeId}`);
+      return response.data;
+    } catch (error) {
+      console.error('Get fingerprints error:', error);
+      throw error;
+    }
+  },
+
 };
 
 export default api;

@@ -16,6 +16,13 @@ import { Ionicons } from '@expo/vector-icons';
 import { employeeAPI } from '../services/api';
 import { handleAPIError } from '../utils/errorHandler';
 
+// ✅ IMPORT MFS110 SERVICE
+import {
+  enrollFingerprint,
+  validatePrerequisites,
+  showSetupInstructions,
+} from '../services/mfs110Service';
+
 const EmployeeCreateScreen = ({ navigation }) => {
   const [formData, setFormData] = useState({
     name: '',
@@ -27,6 +34,11 @@ const EmployeeCreateScreen = ({ navigation }) => {
     longitude: '',
   });
   const [isLoading, setIsLoading] = useState(false);
+  
+  // ✅ NEW: Fingerprint capture states
+  const [isCapturing, setIsCapturing] = useState(false);
+  const [captureStatus, setCaptureStatus] = useState('');
+  const [fingerprintQuality, setFingerprintQuality] = useState(null);
 
   const updateField = (field, value) => {
     setFormData(prev => ({
@@ -53,7 +65,7 @@ const EmployeeCreateScreen = ({ navigation }) => {
       return false;
     }
     if (!formData.fingerprintTemplate.trim()) {
-      Alert.alert('Validation Error', 'Please enter fingerprint template');
+      Alert.alert('Validation Error', 'Please capture fingerprint');
       return false;
     }
     if (!formData.latitude.trim() || !formData.longitude.trim()) {
@@ -79,6 +91,102 @@ const EmployeeCreateScreen = ({ navigation }) => {
     return true;
   };
 
+  // ✅ NEW: REAL FINGERPRINT CAPTURE FUNCTION
+  const handleFingerprintCapture = async () => {
+    try {
+      setIsCapturing(true);
+      setCaptureStatus('Initializing...');
+      setFingerprintQuality(null);
+
+      // Step 1: Validate prerequisites
+      console.log('🔍 Checking MFS110 prerequisites...');
+      setCaptureStatus('Checking device...');
+      
+      const validation = await validatePrerequisites();
+
+      if (!validation.valid) {
+        console.log('❌ Prerequisites not met:', validation.message);
+        Alert.alert(
+          'Setup Required',
+          validation.message,
+          [
+            {
+              text: 'View Instructions',
+              onPress: () => showSetupInstructions(),
+            },
+            { text: 'Cancel', style: 'cancel' },
+          ]
+        );
+        setIsCapturing(false);
+        setCaptureStatus('');
+        return;
+      }
+
+      console.log('✅ Prerequisites validated');
+
+      // Step 2: Capture fingerprint
+      setCaptureStatus('Place finger on scanner...');
+      console.log('📸 Starting fingerprint capture...');
+
+      const result = await enrollFingerprint({
+        onProgress: (message) => {
+          console.log('📊 Progress:', message);
+          setCaptureStatus(message);
+        },
+        onSuccess: (data) => {
+          console.log('✅ Fingerprint captured:', {
+            quality: data.quality,
+            templateLength: data.template?.length,
+          });
+        },
+        onError: (error) => {
+          console.error('❌ Capture error:', error);
+        },
+      });
+
+      if (result.success) {
+        // Update form with captured template
+        updateField('fingerprintTemplate', result.template);
+        setFingerprintQuality(result.quality);
+        setCaptureStatus('Capture successful ✓');
+
+        console.log('✅ Fingerprint saved to form');
+
+        Alert.alert(
+          'Success!',
+          `Fingerprint captured successfully!\n\n` +
+            (result.quality 
+              ? `Quality Score: ${result.quality}/100\n` 
+              : '') +
+            `Template Size: ${result.template.length} characters`,
+          [{ text: 'OK' }]
+        );
+      } else {
+        throw new Error(result.error || 'Capture failed');
+      }
+
+    } catch (error) {
+      console.error('❌ Fingerprint capture error:', error);
+      setCaptureStatus('Capture failed');
+      
+      Alert.alert(
+        'Capture Failed',
+        error.message || 'Failed to capture fingerprint. Please try again.',
+        [{ text: 'OK' }]
+      );
+    } finally {
+      setIsCapturing(false);
+      // Keep status message visible for 3 seconds
+      setTimeout(() => {
+        if (formData.fingerprintTemplate) {
+          setCaptureStatus('Ready ✓');
+        } else {
+          setCaptureStatus('');
+        }
+      }, 3000);
+    }
+  };
+
   const handleSubmit = async () => {
     if (!validateForm()) return;
 
@@ -91,15 +199,18 @@ const EmployeeCreateScreen = ({ navigation }) => {
         jobRole: formData.jobRole.trim(),
         department: formData.department.trim(),
         fingerprintTemplate: formData.fingerprintTemplate.trim(),
+        quality: fingerprintQuality, // ✅ Include quality score
         baseLocation: {
           latitude: parseFloat(formData.latitude),
           longitude: parseFloat(formData.longitude),
         },
       };
 
+      console.log('📤 Submitting employee data...');
       const response = await employeeAPI.create(employeeData);
 
       if (response.success) {
+        console.log('✅ Employee created successfully');
         Alert.alert('Success', 'Employee created successfully!', [
           {
             text: 'OK',
@@ -108,27 +219,12 @@ const EmployeeCreateScreen = ({ navigation }) => {
         ]);
       }
     } catch (error) {
+      console.error('❌ Employee creation error:', error);
       const errorMessage = handleAPIError(error);
       Alert.alert('Error', errorMessage);
     } finally {
       setIsLoading(false);
     }
-  };
-
-  const handleFingerprintCapture = () => {
-    Alert.alert(
-      'SDK Integration Required',
-      'In production, this button would:\n\n' +
-        '1. Initialize MFS100/Precision PB100 SDK\n' +
-        '2. Capture fingerprint from scanner\n' +
-        '3. Get template string from SDK\n' +
-        '4. Populate the template field\n\n' +
-        'For now, a dummy template will be used.',
-      [{ text: 'OK' }]
-    );
-
-    const dummyTemplate = `DUMMY_TEMPLATE_${Date.now()}`;
-    updateField('fingerprintTemplate', dummyTemplate);
   };
 
   const initials =
@@ -151,7 +247,7 @@ const EmployeeCreateScreen = ({ navigation }) => {
         contentContainerStyle={styles.scrollContent}
         keyboardShouldPersistTaps="handled"
       >
-        {/* Header / context */}
+        {/* Header */}
         <View style={styles.headerCard}>
           <View style={styles.headerLeft}>
             <Text style={styles.headerTitle}>New employee</Text>
@@ -164,7 +260,7 @@ const EmployeeCreateScreen = ({ navigation }) => {
           </View>
         </View>
 
-        {/* Persona preview */}
+        {/* Preview */}
         <View style={styles.personCard}>
           <View style={styles.avatar}>
             <Text style={styles.avatarText}>{initials}</Text>
@@ -183,7 +279,7 @@ const EmployeeCreateScreen = ({ navigation }) => {
           </View>
         </View>
 
-        {/* Section: basic info */}
+        {/* Basic Info Section */}
         <View style={styles.sectionCard}>
           <Text style={styles.sectionTitle}>Basic information</Text>
 
@@ -197,7 +293,7 @@ const EmployeeCreateScreen = ({ navigation }) => {
                 placeholderTextColor="#B0BEC5"
                 value={formData.name}
                 onChangeText={(text) => updateField('name', text)}
-                editable={!isLoading}
+                editable={!isLoading && !isCapturing}
               />
             </View>
           </View>
@@ -213,7 +309,7 @@ const EmployeeCreateScreen = ({ navigation }) => {
                   placeholderTextColor="#B0BEC5"
                   value={formData.employeeId}
                   onChangeText={(text) => updateField('employeeId', text)}
-                  editable={!isLoading}
+                  editable={!isLoading && !isCapturing}
                   autoCapitalize="characters"
                 />
               </View>
@@ -229,7 +325,7 @@ const EmployeeCreateScreen = ({ navigation }) => {
                   placeholderTextColor="#B0BEC5"
                   value={formData.department}
                   onChangeText={(text) => updateField('department', text)}
-                  editable={!isLoading}
+                  editable={!isLoading && !isCapturing}
                 />
               </View>
             </View>
@@ -245,46 +341,101 @@ const EmployeeCreateScreen = ({ navigation }) => {
                 placeholderTextColor="#B0BEC5"
                 value={formData.jobRole}
                 onChangeText={(text) => updateField('jobRole', text)}
-                editable={!isLoading}
+                editable={!isLoading && !isCapturing}
               />
             </View>
           </View>
         </View>
 
-        {/* Section: fingerprint */}
+        {/* ✅ UPDATED: Fingerprint Section */}
         <View style={styles.sectionCard}>
           <View style={styles.sectionHeaderRow}>
             <Text style={styles.sectionTitle}>Fingerprint template *</Text>
             <View style={styles.sectionTag}>
               <Ionicons name="shield-checkmark-outline" size={14} color="#1976D2" />
-              <Text style={styles.sectionTagText}>SDK integration</Text>
+              <Text style={styles.sectionTagText}>MFS110 RDService</Text>
             </View>
           </View>
 
           <Text style={styles.sdkNote}>
-            In production, this will be captured via MFS100 / Precision PB100 SDK
-            instead of manual entry.
+            Captures biometric data using MFS110 L1 RDService via USB OTG connection.
           </Text>
 
+          {/* ✅ Capture Button */}
           <TouchableOpacity
-            style={styles.captureButton}
+            style={[
+              styles.captureButton,
+              isCapturing && styles.captureButtonDisabled,
+              formData.fingerprintTemplate && styles.captureButtonSuccess,
+            ]}
             onPress={handleFingerprintCapture}
-            disabled={isLoading}
+            disabled={isLoading || isCapturing}
             activeOpacity={0.9}
           >
-            <Ionicons name="finger-print-outline" size={20} color="#FFFFFF" />
-            <Text style={styles.captureButtonText}>Capture fingerprint (demo)</Text>
+            {isCapturing ? (
+              <>
+                <ActivityIndicator size="small" color="#FFFFFF" />
+                <Text style={styles.captureButtonText}>Capturing...</Text>
+              </>
+            ) : (
+              <>
+                <Ionicons 
+                  name={formData.fingerprintTemplate ? "checkmark-circle" : "finger-print-outline"} 
+                  size={20} 
+                  color="#FFFFFF" 
+                />
+                <Text style={styles.captureButtonText}>
+                  {formData.fingerprintTemplate ? 'Re-capture fingerprint' : 'Capture fingerprint'}
+                </Text>
+              </>
+            )}
           </TouchableOpacity>
 
+          {/* ✅ Status Display */}
+          {captureStatus && (
+            <View style={styles.statusBanner}>
+              <Ionicons 
+                name={formData.fingerprintTemplate ? "checkmark-circle" : "information-circle"} 
+                size={16} 
+                color={formData.fingerprintTemplate ? "#4CAF50" : "#FF9800"} 
+              />
+              <Text style={[
+                styles.statusText,
+                formData.fingerprintTemplate && styles.statusTextSuccess
+              ]}>
+                {captureStatus}
+              </Text>
+            </View>
+          )}
+
+          {/* ✅ Quality Display */}
+          {fingerprintQuality !== null && (
+            <View style={styles.qualityBanner}>
+              <Text style={styles.qualityLabel}>Quality Score:</Text>
+              <Text style={styles.qualityValue}>{fingerprintQuality}/100</Text>
+              <View style={[
+                styles.qualityIndicator,
+                { 
+                  backgroundColor: fingerprintQuality >= 70 ? '#4CAF50' : 
+                                  fingerprintQuality >= 50 ? '#FF9800' : '#F44336' 
+                }
+              ]} />
+            </View>
+          )}
+
+          {/* ✅ Template Preview (Read-only) */}
           <View style={styles.field}>
             <View style={styles.inputWrapperMultiline}>
               <TextInput
                 style={[styles.input, styles.textArea]}
-                placeholder="Fingerprint template will appear here"
+                placeholder="Fingerprint template will appear here after capture"
                 placeholderTextColor="#B0BEC5"
-                value={formData.fingerprintTemplate}
-                onChangeText={(text) => updateField('fingerprintTemplate', text)}
-                editable={!isLoading}
+                value={
+                  formData.fingerprintTemplate 
+                    ? `${formData.fingerprintTemplate.substring(0, 100)}...\n(${formData.fingerprintTemplate.length} characters)`
+                    : ''
+                }
+                editable={false}
                 multiline
                 numberOfLines={3}
               />
@@ -292,7 +443,7 @@ const EmployeeCreateScreen = ({ navigation }) => {
           </View>
         </View>
 
-        {/* Section: base location */}
+        {/* Base Location Section */}
         <View style={styles.sectionCard}>
           <Text style={styles.sectionTitle}>Base location *</Text>
           <Text style={styles.sectionHint}>
@@ -311,7 +462,7 @@ const EmployeeCreateScreen = ({ navigation }) => {
                   value={formData.latitude}
                   onChangeText={(text) => updateField('latitude', text)}
                   keyboardType="numeric"
-                  editable={!isLoading}
+                  editable={!isLoading && !isCapturing}
                 />
               </View>
             </View>
@@ -327,26 +478,27 @@ const EmployeeCreateScreen = ({ navigation }) => {
                   value={formData.longitude}
                   onChangeText={(text) => updateField('longitude', text)}
                   keyboardType="numeric"
-                  editable={!isLoading}
+                  editable={!isLoading && !isCapturing}
                 />
               </View>
             </View>
           </View>
         </View>
 
-        {/* Info banner */}
+        {/* Info Banner */}
         <View style={styles.infoBanner}>
           <Ionicons name="information-circle-outline" size={20} color="#1976D2" />
           <Text style={styles.infoText}>
-            You can edit employee details later from the employee profile screen.
+            Ensure MFS110 L1 RDService app is installed and the scanner is connected via OTG before
+            capturing fingerprint.
           </Text>
         </View>
 
-        {/* Submit button */}
+        {/* Submit Button */}
         <TouchableOpacity
           style={[styles.submitButton, isLoading && styles.submitButtonDisabled]}
           onPress={handleSubmit}
-          disabled={isLoading}
+          disabled={isLoading || isCapturing}
           activeOpacity={0.95}
         >
           {isLoading ? (
@@ -542,26 +694,82 @@ const styles = StyleSheet.create({
   textArea: {
     minHeight: 80,
     textAlignVertical: 'top',
+    paddingHorizontal: 10,
   },
 
   sdkNote: {
     fontSize: 12,
-    color: '#FF9800',
+    color: '#607D8B',
     marginBottom: 10,
   },
+  
+  // ✅ Updated capture button styles
   captureButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#4CAF50',
+    justifyContent: 'center',
+    backgroundColor: '#2196F3',
     borderRadius: 999,
-    paddingVertical: 10,
-    paddingHorizontal: 14,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
     marginBottom: 12,
+  },
+  captureButtonDisabled: {
+    backgroundColor: '#90CAF9',
+  },
+  captureButtonSuccess: {
+    backgroundColor: '#4CAF50',
   },
   captureButtonText: {
     color: '#FFFFFF',
-    fontSize: 13,
+    fontSize: 14,
     fontWeight: '600',
+    marginLeft: 8,
+  },
+
+  // ✅ New status styles
+  statusBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFF3E0',
+    borderRadius: 8,
+    padding: 10,
+    marginBottom: 12,
+  },
+  statusText: {
+    marginLeft: 8,
+    fontSize: 13,
+    color: '#FF9800',
+    fontWeight: '500',
+  },
+  statusTextSuccess: {
+    color: '#4CAF50',
+  },
+
+  // ✅ New quality styles
+  qualityBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#E8F5E9',
+    borderRadius: 8,
+    padding: 10,
+    marginBottom: 12,
+  },
+  qualityLabel: {
+    fontSize: 13,
+    color: '#2E7D32',
+    fontWeight: '500',
+  },
+  qualityValue: {
+    fontSize: 15,
+    color: '#1B5E20',
+    fontWeight: '700',
+    marginLeft: 8,
+  },
+  qualityIndicator: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
     marginLeft: 8,
   },
 

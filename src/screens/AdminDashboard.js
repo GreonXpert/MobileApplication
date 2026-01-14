@@ -10,6 +10,7 @@ import {
   Alert,
   ActivityIndicator,
   Dimensions,
+  Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { dashboardAPI } from '../services/api';
@@ -499,7 +500,8 @@ const styles = StyleSheet.create({
   },
   welcomeCard: {
     margin: 16,
-    marginTop: 20,
+        marginTop: Platform.OS === 'ios' ? 40: 8,
+
     padding: 20,
     backgroundColor: '#FFFFFF',
     borderRadius: 16,
@@ -516,6 +518,8 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   welcomeTitle: {
+  
+    
     fontSize: 24,
     fontWeight: '700',
     color: '#1A1A1A',

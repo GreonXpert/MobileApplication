@@ -211,8 +211,8 @@ const styles = StyleSheet.create({
 
   // Top header with add button
   headerCard: {
-    marginHorizontal: 16,
-    marginTop: Platform.OS === 'ios' ? 10 : 8,
+    marginHorizontal: 26,
+    marginTop: Platform.OS === 'ios' ? 40: 8,
     marginBottom: 6,
     padding: 14,
     borderRadius: 16,
